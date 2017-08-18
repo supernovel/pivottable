@@ -8,6 +8,15 @@ var Lib = module.exports = {};
 
 //--------------- 필요한 함수들 prototpye에 작성 Start---------------
 
+if (window.NodeList && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = function (callback, thisArg) {
+        thisArg = thisArg || window;
+        for (var i = 0; i < this.length; i++) {
+            callback.call(thisArg, this[i], i, this);
+        }
+    };
+}
+
 if(!Element.prototype.text){
     Element.prototype.text = function(string){ 
         if(typeof(string) === 'string'){
