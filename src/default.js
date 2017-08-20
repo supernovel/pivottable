@@ -13,7 +13,7 @@ var Aggregator = require('./aggregator'),
 var Default = module.exports = {};
 
 
-Default.dataOpts = function(locale, uiFlag){
+Default.inputOpts = function(locale, uiFlag){
     if(uiFlag){
         return {
             derivedAttributes: {},
@@ -35,7 +35,8 @@ Default.dataOpts = function(locale, uiFlag){
             filter: function() {
                 return true;
             },
-            sorters: {}
+            sorters: {},
+            multipleTable: false
         }
     }else{
         return {

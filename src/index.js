@@ -12,10 +12,6 @@ var Default = require('./default'),
 
 var Pivot = module.exports = {};
 
-
-var hasProp = {}.hasOwnProperty;
-var indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
-
 /**
  * pivotUI()
  * 피봇을 작성합니다.
@@ -24,8 +20,8 @@ var indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i 
  * 
  * @param {Object} options {
  *      target: 타켓 엘리먼트
- *      data: 데이터,
- *      dataOpts: 데이터 옵션,
+ *      input: 데이터,
+ *      inputOpts: 데이터 옵션,
  *      overwrite: 덮어쓰기,
  *      locale: 언어
  * }
@@ -37,8 +33,8 @@ Pivot.pivotUI = function pivotUI(options) {
     options = options || {};
 
     var target = options.target,
-        data = options.data,
-        dataOpts = options.dataOpts,
+        input = options.input,
+        inputOpts = options.inputOpts,
         overwrite = options.overwrite,
         locale = options.locale,
         container;
@@ -61,53 +57,58 @@ Pivot.pivotUI = function pivotUI(options) {
         container.locale = locale;
     }
 
-    dataOpts = container.dataOpts = Lib.deepExtend(
+    inputOpts = container.inputOpts = Lib.deepExtend(
         {},
         Default.localeOpts(container.locale),
-        Default.dataOpts(container.locale, true),
-        container.dataOpts  || {},
-        dataOpts || {}
+        Default.inputOpts(container.locale, true),
+        container.inputOpts  || {},
+        inputOpts || {}
     )
 
     container.__pivotInput__ = options;
 
     try {
         var attrValues = {},
-            materializedInput = [],
+            materializedInput =  [],
             recordsProcessed = 0;
 
-        PivotData.forEachRecord(data, dataOpts.derivedAttributes, function(record) {
-            var base, ref, value;
-            
-            if (!dataOpts.filter(record)) {
-                return;
-            }
-            
-            materializedInput.push(record);
-            
-            for(var attr in record) {
-                if (!Lib.hasProp.call(record, attr)) continue;
-                if (attrValues[attr] == null) {
-                    attrValues[attr] = {};
-                    if (recordsProcessed > 0) {
-                        attrValues[attr]["null"] = recordsProcessed;
+        PivotData.forEachRecord({
+                input: input, 
+                derivedAttributes: inputOpts.derivedAttributes,
+                multiple: multiple,
+            },
+            function(record, name) {
+                var base, _ref0, value;
+                
+                if (!inputOpts.filter(record)) {
+                    return;
+                }
+                
+                materializedInput.push(record);
+                
+                for(var attr in record) {
+                    if (!Lib.hasProp.call(record, attr)) continue;
+                    if (attrValues[attr] == null) {
+                        attrValues[attr] = {};
+                        if (recordsProcessed > 0) {
+                            attrValues[attr]["null"] = recordsProcessed;
+                        }
                     }
                 }
-            }
-            for(var attr in attrValues) {
-                value = (ref = record[attr]) != null ? ref : "null";
-                if ((base = attrValues[attr])[value] == null) {
-                    base[value] = 0;
+                for(var attr in attrValues) {
+                    value = (_ref0 = record[attr]) != null ? _ref0 : "null";
+                    if ((base = attrValues[attr])[value] == null) {
+                        base[value] = 0;
+                    }
+                    attrValues[attr][value]++;
                 }
-                attrValues[attr][value]++;
-            }
 
-            return recordsProcessed++;
-        });
+                return recordsProcessed++;
+            }
+        );
 
         //테이블 그리기
 
-        
         var refresh; /*= (function(_this) {            line:696
             return function() {
                 pivotTable.css("opacity", 0.5);
@@ -120,9 +121,10 @@ Pivot.pivotUI = function pivotUI(options) {
 
         target.appendChild(uiTable);
 
-        var rendererControl = document.createElement("td");
+        var rendererControl = document.createElement("td"),
             renderer = document.createElement("select")
-                               .addClass('pvtRenderer');
+                               .addClass('pvtRenderer'),
+            _tableSelect;
             
         rendererControl.appendChild(renderer);
         
@@ -130,17 +132,16 @@ Pivot.pivotUI = function pivotUI(options) {
             return refresh();
         };
 
+        var _ref1 = inputOpts.renderers;
 
-        var ref = dataOpts.renderers;
-
-        for (var x in ref) {
-            if (!Lib.hasProp.call(ref, x)) continue;
-            var _options0 = document.createElement("option")
-                                  .setText(ref[x].name);
+        for (var x in _ref1) {
+            if (!Lib.hasProp.call(_ref1, x)) continue;
+            var _renderOption = document.createElement("option")
+                                    .setText(_ref1[x].name);
            
-            _options0.value = x;
+            _renderOption.value = x;
 
-            renderer.appendChild(_options0);
+            renderer.appendChild(_renderOption);
         }
 
         var unused = document.createElement('td').addClass('pvtAxisContainer pvtUnused');
@@ -149,7 +150,7 @@ Pivot.pivotUI = function pivotUI(options) {
             var results;
             results = [];
             for (var a in attrValues) {
-                if (Lib.indexOf.call(dataOpts.hiddenAttributes, a) < 0) {
+                if (Lib.indexOf.call(inputOpts.hiddenAttributes, a) < 0) {
                     results.push(a);
                 }
             }
@@ -158,10 +159,10 @@ Pivot.pivotUI = function pivotUI(options) {
 
         var unusedAttrsVerticalAutoOverride = false;
 
-        if (dataOpts.unusedAttrsVertical === "auto") {
+        if (inputOpts.unusedAttrsVertical === "auto") {
             unusedAttrsVerticalAutoCutoff = 120;
         } else {
-            unusedAttrsVerticalAutoCutoff = parseInt(dataOpts.unusedAttrsVertical);
+            unusedAttrsVerticalAutoCutoff = parseInt(inputOpts.unusedAttrsVertical);
         }
         
         if (!isNaN(unusedAttrsVerticalAutoCutoff)) {
@@ -175,19 +176,20 @@ Pivot.pivotUI = function pivotUI(options) {
             unusedAttrsVerticalAutoOverride = attrLength > unusedAttrsVerticalAutoCutoff;
         }
         
-        if (dataOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
+        if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
             unused.addClass('pvtVertList');
         } else {
             unused.addClass('pvtHorizList');
         }
 
-        var fn1 = function(attr, i) {
+        var checkAttr = function(attr, i) {
             var values = (function() {
-                var results;
-                results = [];
+                var results = [];
+
                 for (v in attrValues[attr]) {
                     results.push(v);
                 }
+
                 return results;
             })();
 
@@ -211,39 +213,43 @@ Pivot.pivotUI = function pivotUI(options) {
             
             valueList.appendChild(_h0);
             
-            if (values.length > dataOpts.menuLimit) {
+            if (values.length > inputOpts.menuLimit) {
                 var _p0 = document.createElement('p');
 
-                _p0.innerHTML = dataOpts.localeStrings.tooMany;
+                _p0.innerHTML = inputOpts.localeStrings.tooMany;
 
                 valueList.appendChild(_p0);
             } else {
                 if (values.length > 5) {
                     var controls = document.createElement('p');
-                        sorter = Lib.getSort(dataOpts.sorters, attr);
-                        placeholder = dataOpts.localeStrings.filterResults;
+                        sorter = Lib.getSort(inputOpts.sorters, attr);
+                        placeholder = inputOpts.localeStrings.filterResults;
 
                     valueList.appendChild(controls);
 
-                    var _input0 = document.createElement('input')
+                    var _searchInput = document.createElement('input')
                                           .addClass('pvtSearch');
 
-                    _input0.type = 'text';
-                    _input0.setAttribute('placeholder', placeholder);
+                    _searchInput.type = 'text';
+                    _searchInput.setAttribute('placeholder', placeholder);
 
-                    _input0.onkeyup = function(){
-                        var accept, accept_gen, filter;
-
-                        filter = this.value.toLowerCase().trim();
+                    _searchInput.onkeyup = function(){
+                        var accept, 
+                            accept_gen, 
+                            filter = this.value.toLowerCase().trim();
                         
                         accept_gen = function(prefix, accepted) {
                             return function(v) {
-                                var real_filter, ref1;
-                                real_filter = filter.substring(prefix.length).trim();
+                                var _ref2,
+                                    real_filter = filter.substring(prefix.length).trim();
+                                
                                 if (real_filter.length === 0) {
                                     return true;
                                 }
-                                return ref1 = Math.sign(sorter(v.toLowerCase(), real_filter)), Lib.indexOf.call(accepted, ref1) >= 0;
+                                
+                                _ref2 = Math.sign(sorter(v.toLowerCase(), real_filter))
+
+                                return Lib.indexOf.call(accepted, _ref2) >= 0;
                             };
                         };
 
@@ -274,42 +280,43 @@ Pivot.pivotUI = function pivotUI(options) {
                                          return node.parentNode.parentNode.style.display='none';
                                      }
                                  });
-
-                        return false;
                     }
 
-                    controls.appendChild(_input0);
+                    controls.appendChild(_searchInput);
 
                     var _br0 = document.createElement('br');
 
                     controls.appendChild(_br0);
 
-                    var _button0 = document.createElement('button'),
-                        _button1 = document.createElement('button');
+                    var _selectAllButton = document.createElement('button'),
+                        _selectNoneButton = document.createElement('button');
 
-                    _button0.type = _button1.type = 'button';
+                    _selectAllButton.type = _selectNoneButton.type = 'button';
 
-                    _button0.innerHTML = dataOpts.localeStrings.selectAll;
-                    _button0.onclick = function() {
-                        valueList.querySelectorAll("input:visible:not(:checked)")
+                    _selectAllButton.innerHTML = inputOpts.localeStrings.selectAll;
+                    _selectAllButton.onclick = function() {
+                        valueList.querySelectorAll('input:not(:checked)')
                                  .forEach(function(node){
-                                     node.checked = true;
-                                     node.toggleClass('changed');
+                                    if(node.style.display !== 'none'){ 
+                                        node.checked = true;
+                                        node.toggleClass('changed');
+                                    }
                                  });
-                        return false;
                     };
 
-                    _button1.innerHTML = dataOpts.localeStrings.selectNone;
-                    _button1.onclick = function() {
-                        valueList.querySelectorAll("input:visible:checked").forEach(function(node){
-                            node.checked = false;
-                            node.toggleClass('changed');
-                        });
-                        return false;
+                    _selectNoneButton.innerHTML = inputOpts.localeStrings.selectNone;
+                    _selectNoneButton.onclick = function() {
+                        valueList.querySelectorAll('input:checked')
+                                 .forEach(function(node){
+                                    if(node.style.display !== 'none'){
+                                        node.checked = false;
+                                        node.toggleClass('changed');
+                                    }
+                                 });
                     };
 
-                    controls.appendChild(_button0);
-                    controls.appendChild(_button1);
+                    controls.appendChild(_selectAllButton);
+                    controls.appendChild(_selectNoneButton);
                 }
 
                 var checkContainer = document.createElement('div')
@@ -317,34 +324,35 @@ Pivot.pivotUI = function pivotUI(options) {
 
                 valueList.appendChild(checkContainer);
 
-                var ref1 = values.sort(Lib.getSort(dataOpts.sorters, attr));
+                var _ref3 = values.sort(Lib.getSort(inputOpts.sorters, attr));
 
-                for (var n = 0, len2 = ref1.length; n < len2; n++) {
-                    var value = ref1[n],
+                for (var n = 0, len2 = _ref3.length; n < len2; n++) {
+                    var value = _ref3[n],
                         valueCount = attrValues[attr][value],
                         filterItem = document.createElement('label'),
                         filterItemExcluded = false;
                     
-                    if (dataOpts.inclusions[attr]) {
-                        filterItemExcluded = (Lib.indexOf.call(dataOpts.inclusions[attr], value) < 0);
-                    } else if (dataOpts.exclusions[attr]) {
-                        filterItemExcluded = (Lib.indexOf.call(dataOpts.exclusions[attr], value) >= 0);
+                    if (inputOpts.inclusions[attr]) {
+                        filterItemExcluded = (Lib.indexOf.call(inputOpts.inclusions[attr], value) < 0);
+                    } else if (inputOpts.exclusions[attr]) {
+                        filterItemExcluded = (Lib.indexOf.call(inputOpts.exclusions[attr], value) >= 0);
                     }
 
                     hasExcludedItem || (hasExcludedItem = filterItemExcluded);
                     
-                    var _input1 = document.createElement('input')
+                    var _filterInput = document.createElement('input')
                                           .addClass('pvtFilter')
                     
-                    _input1.type = 'checkbox';
-                    _input1.setAttribute('checked', !filterItemExcluded);
-                    _input1.setAttribute('data-filter', [attr, value]);
+                    _filterInput.type = 'checkbox';
+                    _filterInput.setAttribute('checked', !filterItemExcluded);
+                    _filterInput.setAttribute('data-filterAttr', attr);
+                    _filterInput.setAttribute('data-filterValue', value);
 
-                    _input1.onchange = function(){
+                    _filterInput.onchange = function(){
                         return this.toggleClass("changed");
                     }
 
-                    filterItem.appendChild(_input1);
+                    filterItem.appendChild(_filterInput);
                     
                     var _span2 = document.createElement('span')
                                          .addClass('value')
@@ -396,14 +404,12 @@ Pivot.pivotUI = function pivotUI(options) {
             }
 
             var closeFilterBox = function() {
-                var _notChecked = valueList.querySelectorAll("[type='checkbox']"),
+                var _checkBox = valueList.querySelectorAll("[type='checkbox']"),
                     _checked = valueList.querySelectorAll("[type='checkbox']:checked"),
                     _pvtSearch = valueList.querySelectorAll(".pvtSearch"),
                     _pvtCheckContainer = valueList.querySelectorAll(".pvtCheckContainer p");
 
-
-
-                if (_notChecked.length > _checked.length) {
+                if (_checkBox.length > _checked.length) {
                     attrElem.addClass("pvtFilteredAttribute");
                 } else {
                     attrElem.removeClass("pvtFilteredAttribute");
@@ -423,12 +429,12 @@ Pivot.pivotUI = function pivotUI(options) {
 
             valueList.appendChild(finalButtons);
 
-            if (values.length <= dataOpts.menuLimit) {
-                var _button2 = document.createElement('button')
-                                       .setText(dataOpts.localeStrings.apply);
+            if (values.length <= inputOpts.menuLimit) {
+                var _applyButton = document.createElement('button')
+                                       .setText(inputOpts.localeStrings.apply);
 
-                _button2.type = 'button';
-                _button2.onclick = function(){
+                _applyButton.type = 'button';
+                _applyButton.onclick = function(){
                     var _changed = valueList.querySelectorAll(".changed");
 
                     _changed.forEach(function(node){
@@ -442,14 +448,14 @@ Pivot.pivotUI = function pivotUI(options) {
                     return closeFilterBox();
                 }
 
-                finalButtons.appendChild(_button2);
+                finalButtons.appendChild(_applyButton);
             }
 
-            var _button3 = document.createElement('button')
-                                   .setText(dataOpts.localeStrings.cancel);
+            var _cancelButton = document.createElement('button')
+                                   .setText(inputOpts.localeStrings.cancel);
 
-            _button3.type = 'button';
-            _button3.onclick = function(){
+            _cancelButton.type = 'button';
+            _cancelButton.onclick = function(){
                 var _checked = valueList.querySelectorAll(".changed:checked"),
                     _notChecked = valueList.querySelectorAll(".changed:not(:checked)");
 
@@ -466,13 +472,15 @@ Pivot.pivotUI = function pivotUI(options) {
                 return closeFilterBox();
             }
 
+            finalButtons.appendChild(_cancelButton);
+
             unused.appendChild(attrElem);
             unused.appendChild(valueList);
         };
 
         for(var i in shownAttributes) {
             if (!Lib.hasProp.call(shownAttributes, i)) continue;
-            fn1(shownAttributes[i], i);
+            checkAttr(shownAttributes[i], i);
         }
 
         var tr1 = document.createElement('tr');
@@ -486,13 +494,13 @@ Pivot.pivotUI = function pivotUI(options) {
             return refresh();
         };
 
-        var ref1 = dataOpts.aggregators;
+        var _ref4 = inputOpts.aggregators;
 
-        for(var x in ref1) {
-            if (!Lib.hasProp.call(ref1, x)) continue;
+        for(var x in _ref4) {
+            if (!Lib.hasProp.call(_ref4, x)) continue;
 
             var _option1 = document.createElement('option')
-                                   .setText(ref1[x].name);
+                                   .setText(_ref4[x].name);
 
             _option1.value = x;
 
@@ -521,8 +529,8 @@ Pivot.pivotUI = function pivotUI(options) {
                                     .addClass('pvtRowOrder');
         
         rowOrderArrow.setAttribute('role','button');
-        rowOrderArrow.setAttribute('data-order',dataOpts.rowOrder);
-        rowOrderArrow.innerHTML = ordering[dataOpts.rowOrder].rowSymbol;
+        rowOrderArrow.setAttribute('data-order',inputOpts.rowOrder);
+        rowOrderArrow.innerHTML = ordering[inputOpts.rowOrder].rowSymbol;
         rowOrderArrow.onclick = function(){
             this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
             this.innerHTML = ordering[this.getAttribute("data-order")].rowSymbol;
@@ -534,8 +542,8 @@ Pivot.pivotUI = function pivotUI(options) {
                                     .addClass('pvtColOrder');
         
         colOrderArrow.setAttribute('role','button');
-        colOrderArrow.setAttribute('data-order',dataOpts.colOrder);
-        colOrderArrow.innerHTML = ordering[dataOpts.colOrder].colSymbol;
+        colOrderArrow.setAttribute('data-order',inputOpts.colOrder);
+        colOrderArrow.innerHTML = ordering[inputOpts.colOrder].colSymbol;
         colOrderArrow.onclick = function(){
             this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
             this.innerHTML = ordering[this.getAttribute("data-order")].colSymbol;
@@ -572,7 +580,7 @@ Pivot.pivotUI = function pivotUI(options) {
         tr2.appendChild(_td2);
         tr2.appendChild(pivotTable);
 
-        if (dataOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
+        if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
             var _child1 = uiTable.querySelector('tr:nth-child(1)'),
                 _child2 = uiTable.querySelector('tr:nth-child(2)');
            
@@ -587,51 +595,51 @@ Pivot.pivotUI = function pivotUI(options) {
             uiTable.insertBefore(_tr0, uiTable.firstChild);
         }
         
-        var ref2 = dataOpts.cols,
+        var _ref5 = inputOpts.cols,
             _pvtCols = target.querySelector(".pvtCols");
 
-        for(var n = 0, len2 = ref2.length; n < len2; n++) {
-            var x = ref2[n],
+        for(var n = 0, len2 = _ref5.length; n < len2; n++) {
+            var x = _ref5[n],
                 _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
             
             _pvtCols.appendChild(_axis);
         }
         
-        var ref3 = dataOpts.rows,
+        var _ref6 = inputOpts.rows,
             _pvtRows = target.querySelector(".pvtRows");
         
-        for(var o = 0, len3 = ref3.length; o < len3; o++) {
-            var x = ref3[o],
+        for(var o = 0, len3 = _ref6.length; o < len3; o++) {
+            var x = _ref6[o],
                 _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
         }
         
-        if (dataOpts.aggregatorName != null) {
+        if (inputOpts.aggregatorName != null) {
             var _pvtAggregator = target.querySelector(".pvtAggregator");
             
-            _pvtAggregator.value = dataOpts.aggregatorName;
+            _pvtAggregator.value = inputOpts.aggregatorName;
         }
 
-        if (dataOpts.rendererName != null) {
+        if (inputOpts.rendererName != null) {
             var _pvtRenderer = target.querySelector(".pvtRenderer");
             
-            _pvtRenderer.value = dataOpts.rendererName;
+            _pvtRenderer.value = inputOpts.rendererName;
         }
 
         var initialRender = true;
         var refreshDelayed = (function(_this) {
             return function() {
-                var ref4,i;
+                var _ref7;
                 
                 var subopts = {
-                        derivedAttributes: dataOpts.derivedAttributes,
-                        localeStrings: dataOpts.localeStrings,
-                        rendererOptions: dataOpts.rendererOptions,
-                        sorters: dataOpts.sorters,
+                        derivedAttributes: inputOpts.derivedAttributes,
+                        localeStrings: inputOpts.localeStrings,
+                        rendererOptions: inputOpts.rendererOptions,
+                        sorters: inputOpts.sorters,
                         cols: [],
                         rows: [],
-                        dataClass: dataOpts.dataClass
+                        dataClass: inputOpts.dataClass
                     },
-                    numInputsToProcess = (ref4 = dataOpts.aggregators[aggregator.value].fn([])().numInputs) != null ? ref4 : 0,
+                    numInputsToProcess = (_ref7 = inputOpts.aggregators[aggregator.value].fn([])().numInputs) != null ? _ref7 : 0,
                     vals = [];
 
 
@@ -665,26 +673,26 @@ Pivot.pivotUI = function pivotUI(options) {
                     var pvtVals = _this.querySelector(".pvtVals");
 
 
-                    for (var x = 0, t = 0, ref5 = numInputsToProcess; 0 <= ref5 ? t < ref5 : t > ref5; x = 0 <= ref5 ? ++t : --t) {
+                    for (var x = 0, t = 0, _ref8 = numInputsToProcess; 0 <= _ref8 ? t < _ref8 : t > _ref8; x = 0 <= _ref8 ? ++t : --t) {
                         var newDropdown = document.createElement('select')
                                                   .addClass('pvtAttrDropdown'),
-                            _option1 = document.createElement('option')
-                                               .setText(dataOpts.localeStrings.optionFirst);
+                            _selectOption = document.createElement('option')
+                                               .setText(inputOpts.localeStrings.optionSelect);
 
                          
-                        newDropdown.appendChild(_option1);
+                        newDropdown.appendChild(_selectOption);
                         newDropdown.onchange = function(){
                             return refresh();
                         };
 
                         for (var u = 0, len4 = shownAttributes.length; u < len4; u++) {
                             var attr = shownAttributes[u],
-                                _option2 = document.createElement('option')
+                                _attrOption = document.createElement('option')
                                                    .setText(attr);
 
-                            _option2.value = attr;
+                            _attrOption.value = attr;
 
-                            newDropdown.appendChild(_option2);
+                            newDropdown.appendChild(_attrOption);
                         }
 
                         pvtVals.appendChild(newDropdown);
@@ -692,8 +700,9 @@ Pivot.pivotUI = function pivotUI(options) {
                 }
 
                 if (initialRender) {
-                    vals = dataOpts.vals;
-                    i = 0;
+                    var i = 0;
+
+                    vals = inputOpts.vals;
                     
                     _this.querySelectorAll(".pvtVals select.pvtAttrDropdown")
                          .forEach(function(node) {
@@ -706,8 +715,8 @@ Pivot.pivotUI = function pivotUI(options) {
                 
                 subopts.aggregatorName = aggregator.value;
                 subopts.vals = vals;
-                subopts.aggregator = dataOpts.aggregators[aggregator.value].fn(vals);
-                subopts.renderer = dataOpts.renderers[renderer.value].fn;
+                subopts.aggregator = inputOpts.aggregators[aggregator.value].fn(vals);
+                subopts.renderer = inputOpts.renderers[renderer.value].fn;
                 subopts.rowOrder = rowOrderArrow.getAttribute("data-order");
                 subopts.colOrder = colOrderArrow.getAttribute("data-order");
                 
@@ -716,8 +725,11 @@ Pivot.pivotUI = function pivotUI(options) {
                 _this.querySelectorAll('input.pvtFilter')
                      .forEach(function(node) {
                         if(!node.checked){
-                            var filter;
-                            filter = node.getAttribute("data-filter");
+                            var filter = [
+                                node.getAttribute('data-filterAttr'),
+                                node.getAttribute('data-filterValue')
+                            ];
+
                             if (exclusions[filter[0]] != null) {
                                 return exclusions[filter[0]].push(filter[1]);
                             } else {
@@ -730,9 +742,10 @@ Pivot.pivotUI = function pivotUI(options) {
                 
                 _this.querySelectorAll('input.pvtFilter:checked')
                      .forEach(function(node) {
-                        var filter;
-                        
-                        filter = node.getAttribute("data-filter");
+                        var filter = [
+                            node.getAttribute('data-filterAttr'),
+                            node.getAttribute('data-filterValue')
+                        ];
                         
                         if (exclusions[filter[0]] != null) {
                             if (inclusions[filter[0]] != null) {
@@ -744,14 +757,18 @@ Pivot.pivotUI = function pivotUI(options) {
                     });
 
                 subopts.filter = function(record) {
-                    var excludedItems, k, ref6, ref7;
+                    var _ref9, _ref10;
                     
-                    if (!dataOpts.filter(record)) {
+                    if (!inputOpts.filter(record)) {
                         return false;
                     }
-                    for (k in exclusions) {
-                        excludedItems = exclusions[k];
-                        if (ref6 = "" + ((ref7 = record[k]) != null ? ref7 : 'null'), Lib.indexOf.call(excludedItems, ref6) >= 0) {
+
+                    for (var k in exclusions) {
+                        var excludedItems = exclusions[k];
+                        
+                        _ref9 = "" + ((_ref10 = record[k]) != null ?  _ref10 : 'null')
+
+                        if (Lib.indexOf.call(excludedItems, _ref9) >= 0) {
                             return false;
                         }
                     }
@@ -760,11 +777,11 @@ Pivot.pivotUI = function pivotUI(options) {
                 
                 Pivot.pivot({
                     target: pivotTable,
-                    data: materializedInput, 
-                    dataOpts: subopts
+                    input: materializedInput, 
+                    inputOpts: subopts
                 });
                 
-                pivotUIOptions = Lib.deepExtend({}, dataOpts, {
+                pivotUIOptions = Lib.deepExtend({}, inputOpts, {
                     cols: subopts.cols,
                     rows: subopts.rows,
                     colOrder: subopts.colOrder,
@@ -777,15 +794,15 @@ Pivot.pivotUI = function pivotUI(options) {
                     rendererName: renderer.value
                 });
 
-                _this.__pivotUIContainer__.dataOpts = pivotUIOptions;
+                _this.__pivotUIContainer__.inputOpts = pivotUIOptions;
                 
-                if (dataOpts.autoSortUnusedAttrs) {
+                if (inputOpts.autoSortUnusedAttrs) {
                     unusedAttrsContainer = _this.querySelector("td.pvtUnused.pvtAxisContainer");
                     var _liArr = unusedAttrsContainer.querySelectorAll("li");
                     
                     
                     Array.prototype.sort.call(_liArr, function(a, b) {
-                        return naturalSort(a.getText(), b.getText());
+                        return Lib.naturalSort(a.getText(), b.getText());
                     })
                     
                     _liArr.forEach(function(node){
@@ -795,8 +812,8 @@ Pivot.pivotUI = function pivotUI(options) {
 
                 pivotTable.style.opacity = 1;
 
-                if (dataOpts.onRefresh != null) {
-                    return dataOpts.onRefresh(pivotUIOptions);
+                if (inputOpts.onRefresh != null) {
+                    return inputOpts.onRefresh(pivotUIOptions);
                 }
             };
         })(target);
@@ -814,7 +831,7 @@ Pivot.pivotUI = function pivotUI(options) {
                                    .forEach(function(node){
                                         new Sortable(node,{
                                             group: 'axis',
-                                            onMove: function(e){
+                                            onEnd: function(e){
                                                 return refresh();
                                             }
                                         });
@@ -824,7 +841,7 @@ Pivot.pivotUI = function pivotUI(options) {
         if (typeof console !== "undefined" && console !== null) {
             console.error(e.stack);
         }
-        target.innerHTML = dataOpts.localeStrings.uiRenderError;
+        target.innerHTML = inputOpts.localeStrings.uiRenderError;
     }
 }
 
@@ -836,19 +853,19 @@ Pivot.pivotUI = function pivotUI(options) {
  * 
  * @param {Object} options {
  *      target: 타켓 엘리먼트
- *      data: 데이터,
- *      dataOpts: 데이터 옵션,
+ *      input: 데이터,
+ *      inputOpts: 데이터 옵션,
  *      locale: 언어
  * }
  * 
  * @return {Element}
  */
-Pivot.pivot= function pivot(options) {
+Pivot.pivot = function pivot(options) {
     options = options || {};
     
     var target = options.target,
-        data = options.data,
-        dataOpts = options.dataOpts,
+        input = options.input,
+        inputOpts = options.inputOpts,
         locale = options.locale,
         container;
 
@@ -870,19 +887,19 @@ Pivot.pivot= function pivot(options) {
         container.locale = locale;
     }
 
-    dataOpts = container.dataOpts = Lib.deepExtend(
+    inputOpts = container.inputOpts = Lib.deepExtend(
         {}, 
         Default.localeOpts(container.locale), 
-        Default.dataOpts(container.locale),
-        dataOpts || {}
+        Default.inputOpts(container.locale),
+        inputOpts || {}
     );
 
     var result = null;
     
     try {
-        var pivotData = new dataOpts.dataClass(data, dataOpts);
+        var pivotData = new inputOpts.dataClass(input, inputOpts);
         try {
-            result = dataOpts.renderer(pivotData, dataOpts.rendererOptions);
+            result = inputOpts.renderer(pivotData, inputOpts.rendererOptions);
         } catch (_error) {
             var e = _error;
             if (typeof console !== "undefined" && console !== null) {
@@ -891,7 +908,7 @@ Pivot.pivot= function pivot(options) {
 
             var _span5 = document.createElement('span');
             
-            result = _span5.innerHTML = dataOpts.localeStrings.renderError;
+            result = _span5.innerHTML = inputOpts.localeStrings.renderError;
         }
     } catch (_error) {
         var e = _error;
@@ -901,7 +918,7 @@ Pivot.pivot= function pivot(options) {
 
         var _span6 = document.createElement('span');
         
-        result = _span5.innerHTML = dataOpts.localeStrings.computeError;
+        result = _span5.innerHTML = inputOpts.localeStrings.computeError;
     }
 
     while (target.hasChildNodes()) {

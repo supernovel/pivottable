@@ -8,14 +8,14 @@ var Aggregator = require('./aggregator'),
     Renderer = require('./renderer');
 
 var PivotData = module.exports = function PivotData(input, opts) {
-    var ref, ref1, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9;
+    var ref0, ref1, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9;
 
     if (opts == null) {
         opts = {};
     }
     
     this.input = input;
-    this.aggregator = (ref = opts.aggregator) != null ? ref : Aggregator.count()();
+    this.aggregator = (ref0 = opts.aggregator) != null ? ref0 : Aggregator.count()();
     this.aggregatorName = (ref1 = opts.aggregatorName) != null ? ref1 : "Count";
     this.colAttrs = (ref2 = opts.cols) != null ? ref2 : [];
     this.rowAttrs = (ref3 = opts.rows) != null ? ref3 : [];
@@ -35,22 +35,36 @@ var PivotData = module.exports = function PivotData(input, opts) {
     this.allTotal = this.aggregator(this, [], []);
     this.sorted = false;
 
-    PivotData.forEachRecord(this.input, this.derivedAttributes, (function(_this) {
-        return function(record) {
-            if (_this.filter(record)) {
-                return _this.processRecord(record);
-            }
-        };
-    })(this));
+    PivotData.forEachRecord({
+            input: this.input, 
+            derivedAttributes: this.derivedAttributes
+        }, 
+        (function(_this) {
+            return function(record) {
+                if (_this.filter(record)) {
+                    return _this.processRecord(record);
+                }
+            };
+        })(this)
+    );
 }
 
-PivotData.forEachRecord = function(input, derivedAttributes, f) {
-    var addRecord, compactRecord, 
+PivotData.forEachRecord = function(options, callback) {
+    options = options || {};
+
+    var input = options.input, 
+        derivedAttributes = options.derivedAttributes, 
+        multipleTable = options.multipleTable,
+        addRecord, compactRecord, 
         i, j, k, l, 
         len1, record, ref, results, results1, tblCols;
 
+    if(!input){
+        throw new Error("unknown input (Empty)");
+    }
+
     if (Lib.isEmptyObject(derivedAttributes)) {
-        addRecord = f;
+        addRecord = callback;
     } else {
         addRecord = function(record) {
             var k, ref, v;
@@ -58,9 +72,10 @@ PivotData.forEachRecord = function(input, derivedAttributes, f) {
                 v = derivedAttributes[k];
                 record[k] = (ref = v(record)) != null ? ref : record[k];
             }
-            return f(record);
+            return callback(record);
         };
     }
+
     if (Lib.isFunction(input)) {
         return input(addRecord);
     } else if (Lib.isArray(input)) {
@@ -83,40 +98,56 @@ PivotData.forEachRecord = function(input, derivedAttributes, f) {
                     k = ref[j];
                     record[k] = compactRecord[j];
                 }
-                results.push(addRecord(record));
+                results.push(addRecord(record, options.name));
             }
             return results;
         } else {
             results1 = [];
             
-            for (l = 0, len1 = input.length; l < len1; l++) {
-                record = input[l];
-                results1.push(addRecord(record));
+            if(multipleTable){
+                for (i in input) {
+                    if(input[i].data && input[i].name){
+                        results1.push(this.forEachRecord({
+                                input: input[i].data,
+                                name: input[i].name
+                            }, addRecord)
+                        )
+                    }
+                }
+            }else{
+                for (l = 0, len1 = input.length; l < len1; l++) {
+                    record = input[l];
+                    results1.push(addRecord(record, options.name));
+                }
             }
 
             return results1;
         }
-    } else {
+    }else{
         throw new Error("unknown input format");
     }
 };
 
 PivotData.prototype.forEachMatchingRecord = function(criteria, callback) {
-    return PivotData.forEachRecord(this.input, this.derivedAttributes, (function(_this) {
-        return function(record) {
-            var k, ref, v;
-            if (!_this.filter(record)) {
-                return;
-            }
-            for (k in criteria) {
-                v = criteria[k];
-                if (v !== ((ref = record[k]) != null ? ref : "null")) {
+    return PivotData.forEachRecord({
+            input: this.input, 
+            derivedAttributes: this.derivedAttributes
+        }, (function(_this) {
+            return function(record) {
+                var k, ref, v;
+                if (!_this.filter(record)) {
                     return;
                 }
-            }
-            return callback(record);
-        };
-    })(this));
+                for (k in criteria) {
+                    v = criteria[k];
+                    if (v !== ((ref = record[k]) != null ? ref : "null")) {
+                        return;
+                    }
+                }
+                return callback(record);
+            };
+        })(this)
+    );
 };
 
 PivotData.prototype.arrSort = function(attrs) {
@@ -158,14 +189,14 @@ PivotData.prototype.sortKeys = function() {
             case "value_a_to_z":
                 this.rowKeys.sort((function(_this) {
                     return function(a, b) {
-                        return naturalSort(v(a, []), v(b, []));
+                        return Lib.naturalSort(v(a, []), v(b, []));
                     };
                 })(this));
                 break;
             case "value_z_to_a":
                 this.rowKeys.sort((function(_this) {
                     return function(a, b) {
-                        return -naturalSort(v(a, []), v(b, []));
+                        return -Lib.naturalSort(v(a, []), v(b, []));
                     };
                 })(this));
                 break;
@@ -177,13 +208,13 @@ PivotData.prototype.sortKeys = function() {
             case "value_a_to_z":
                 return this.colKeys.sort((function(_this) {
                     return function(a, b) {
-                        return naturalSort(v([], a), v([], b));
+                        return Lib.naturalSort(v([], a), v([], b));
                     };
                 })(this));
             case "value_z_to_a":
                 return this.colKeys.sort((function(_this) {
                     return function(a, b) {
-                        return -naturalSort(v([], a), v([], b));
+                        return -Lib.naturalSort(v([], a), v([], b));
                     };
                 })(this));
             default:
