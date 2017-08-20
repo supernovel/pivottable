@@ -1,0 +1,28 @@
+{
+  "name": "pivottable",
+  "version": "1.0.0",
+  "description": "https://github.com/nicolaskruchten/pivottable 의 라이브러리를 수정한 저장소",
+  "main": "gulpfile.js",
+  "dependencies": {
+    "gulp": "^3.9.1",
+    "gulp-rename": "^1.2.2",
+    "gulp-util": "^3.0.8",
+    "gulp-webserver": "^0.9.1",
+    "sortablejs": "^1.6.0",
+    "webpack": "^3.5.5"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/supernovel/pivottable.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/supernovel/pivottable/issues"
+  },
+  "homepage": "https://github.com/supernovel/pivottable#readme"
+}
