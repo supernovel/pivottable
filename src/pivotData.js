@@ -7,7 +7,6 @@ var Aggregator = require('./aggregator'),
     Lib = require('./lib'),
     Renderer = require('./renderer');
 
-
 var PivotData = module.exports = function PivotData(input, opts) {
     var ref, ref1, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9;
 
@@ -15,11 +14,6 @@ var PivotData = module.exports = function PivotData(input, opts) {
         opts = {};
     }
     
-    this.getAggregator = bind(this.getAggregator, this);
-    this.getRowKeys = bind(this.getRowKeys, this);
-    this.getColKeys = bind(this.getColKeys, this);
-    this.sortKeys = bind(this.sortKeys, this);
-    this.arrSort = bind(this.arrSort, this);
     this.input = input;
     this.aggregator = (ref = opts.aggregator) != null ? ref : Aggregator.count()();
     this.aggregatorName = (ref1 = opts.aggregatorName) != null ? ref1 : "Count";
@@ -73,7 +67,7 @@ PivotData.forEachRecord = function(input, derivedAttributes, f) {
         if (Lib.isArray(input[0])) {
             results = [];
             for (i in input) {
-                if (!hasProp.call(input, i)) continue;
+                if (!Lib.hasProp.call(input, i)) continue;
                 
                 compactRecord = input[i];
                 
@@ -85,7 +79,7 @@ PivotData.forEachRecord = function(input, derivedAttributes, f) {
                 ref = input[0];
                 
                 for (j in ref) {
-                    if (!hasProp.call(ref, j)) continue;
+                    if (!Lib.hasProp.call(ref, j)) continue;
                     k = ref[j];
                     record[k] = compactRecord[j];
                 }
@@ -132,14 +126,14 @@ PivotData.prototype.arrSort = function(attrs) {
         results = [];
         for (l = 0, len1 = attrs.length; l < len1; l++) {
             a = attrs[l];
-            results.push(getSort(this.sorters, a));
+            results.push(Lib.getSort(this.sorters, a));
         }
         return results;
     }).call(this);
     return function(a, b) {
         var comparison, i, sorter;
         for (i in sortersArr) {
-            if (!hasProp.call(sortersArr, i)) continue;
+            if (!Lib.hasProp.call(sortersArr, i)) continue;
             sorter = sortersArr[i];
             comparison = sorter(a[i], b[i]);
             if (comparison !== 0) {

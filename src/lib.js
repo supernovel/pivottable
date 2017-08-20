@@ -17,28 +17,35 @@ if (window.NodeList && !NodeList.prototype.forEach) {
     };
 }
 
-if(!Element.prototype.text){
-    Element.prototype.text = function(string){ 
-        if(typeof(string) === 'string'){
-            if (this.textContent !== undefined)
+if(!Element.prototype.setText){    
+    Element.prototype.setText = function(string){ 
+        if(typeof string === 'string'){
+            if (this.text !== undefined)
+                this.text = string;
+            else if(this.textContent !== undefined){
                 this.textContent = string;
-            else
+            } else
                 this.innerText = string;
             
             return this;
-        }else{
-            return this.textContent || this.innerText;
         }
+    }
+}
+
+if(!Element.prototype.getText){    
+    Element.prototype.getText = function(){ 
+        return this.text || this.textContent || this.innerText;
     }
 }
 
 if (!Element.prototype.addClass) {
     Element.prototype.addClass = function(className){
         if(typeof name === 'string'){
-            if (this.classList)
-                this.classList.add(className);
-            else
+            if(this.className){
                 this.className += ' ' + className;
+            }else{
+                this.className = className;
+            }
         }
         
         return this;
@@ -114,6 +121,12 @@ if (!Math.sign) {
 
 //--------------- 필요한 함수들 prototpye에 작성 End ---------------
 
+
+Lib.hasProp = {}.hasOwnProperty;
+Lib.slice = [].slice,
+Lib.indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
+
+
 Lib.deepExtend = function deepExtend(out){
     out = out || {};
 
@@ -153,18 +166,147 @@ Lib.isEmptyObject = function(obj){
 }
 
 Lib.isFunction = function(func){
-    if(obj && obj instanceof Function){
+    if(func && func instanceof Function){
         return true;
     }
     return false;
 }
 
 Lib.isArray = function(arr){
-    if(obj && obj instanceof Array){
+    if(arr && arr instanceof Array){
         return true;
     }
     return false;
 }
+
+var rx = /(\d+)|(\D+)/g,
+    rd = /\d/,
+    rz = /^0/;
+
+Lib.naturalSort = (function() {
+  return function(as, bs) {
+    var a, a1, b, b1, nas, nbs;
+    
+    if ((bs != null) && (as == null)) {
+      return -1;
+    }
+
+    if ((as != null) && (bs == null)) {
+      return 1;
+    }
+
+    if (typeof as === "number" && isNaN(as)) {
+      return -1;
+    }
+    
+    if (typeof bs === "number" && isNaN(bs)) {
+      return 1;
+    }
+
+    nas = +as;
+    nbs = +bs;
+
+    if (nas < nbs) {
+      return -1;
+    }
+
+    if (nas > nbs) {
+      return 1;
+    }
+
+    if (typeof as === "number" && typeof bs !== "number") {
+      return -1;
+    }
+
+    if (typeof bs === "number" && typeof as !== "number") {
+      return 1;
+    }
+
+    if (typeof as === "number" && typeof bs === "number") {
+      return 0;
+    }
+
+    if (isNaN(nbs) && !isNaN(nas)) {
+      return -1;
+    }
+
+    if (isNaN(nas) && !isNaN(nbs)) {
+      return 1;
+    }
+
+    a = String(as);
+    b = String(bs);
+
+    if (a === b) {
+      return 0;
+    }
+
+    if (!(rd.test(a) && rd.test(b))) {
+      return (a > b ? 1 : -1);
+    }
+
+    a = a.match(rx);
+    b = b.match(rx);
+
+    while (a.length && b.length) {
+        a1 = a.shift();
+        b1 = b.shift();
+        if (a1 !== b1) {
+            if (rd.test(a1) && rd.test(b1)) {
+                return a1.replace(rz, ".0") - b1.replace(rz, ".0");
+            } else {
+                return (a1 > b1 ? 1 : -1);
+            }
+        }
+    }
+    return a.length - b.length;
+  };
+})();
+
+Lib.sortAs = function(order) {
+  var i, l_mapping, mapping, x;
+  mapping = {};
+  l_mapping = {};
+  for (i in order) {
+    x = order[i];
+    mapping[x] = i;
+    if (typeof x === "string") {
+      l_mapping[x.toLowerCase()] = i;
+    }
+  }
+  return function(a, b) {
+    if ((mapping[a] != null) && (mapping[b] != null)) {
+      return mapping[a] - mapping[b];
+    } else if (mapping[a] != null) {
+      return -1;
+    } else if (mapping[b] != null) {
+      return 1;
+    } else if ((l_mapping[a] != null) && (l_mapping[b] != null)) {
+      return l_mapping[a] - l_mapping[b];
+    } else if (l_mapping[a] != null) {
+      return -1;
+    } else if (l_mapping[b] != null) {
+      return 1;
+    } else {
+      return Lib.naturalSort(a, b);
+    }
+  };
+};
+
+Lib.getSort = function(sorters, attr) {
+    var sort;
+    if (sorters != null) {
+        if (Lib.isFunction(sorters)) {
+            sort = sorters(attr);
+            if (Lib.isFunction(sort)) {
+                return sort;
+            }
+        } else if (sorters[attr] != null) {
+            return sorters[attr];
+        }
+    }
+    return Lib.naturalSort;
+};
 
 Lib.addSeparators = function(nStr, thousandsSep, decimalSep) {
     var rgx, x, x1, x2;

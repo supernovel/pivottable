@@ -20,6 +20,7 @@ var Aggregator = module.exports = {
     fractionOf: fractionOf,
     countUnique: countUnique,
     listUnique: listUnique,
+    max: max,
     min: min,
     first: first,
     last: last,
@@ -129,7 +130,7 @@ function uniques(fn, formatter) {
                 uniq: [],
                 push: function(record) {
                     var ref;
-                    if (ref = record[attr], indexOf.call(this.uniq, ref) < 0) {
+                    if (ref = record[attr], Lib.indexOf.call(this.uniq, ref) < 0) {
                         return this.uniq.push(record[attr]);
                     }
                 },
@@ -189,7 +190,7 @@ function extremes(mode, formatter) {
         return function(data, rowKey, colKey) {
             return {
                 val: null,
-                sorter: getSort(data != null ? data.sorters : void 0, attr),
+                sorter: Lib.getSort(data != null ? data.sorters : void 0, attr),
                 push: function(record) {
                     var ref, ref1, ref2, x;
                     x = record[attr];
@@ -422,7 +423,7 @@ function fractionOf(wrapped, type, formatter) {
     }
     return function() {
         var x;
-        x = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+        x = 1 <= arguments.length ? Lib.slice.call(arguments, 0) : [];
         return function(data, rowKey, colKey) {
             return {
                 selector: {
