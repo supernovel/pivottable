@@ -20,13 +20,11 @@ if (window.NodeList && !NodeList.prototype.forEach) {
 if(!Element.prototype.setText){    
     Element.prototype.setText = function(string){ 
         if(typeof string === 'string'){
-            if (this.text !== undefined)
-                this.text = string;
-            else if(this.textContent !== undefined){
+            if(this.textContent !== undefined){
                 this.textContent = string;
-            } else
+            } else {
                 this.innerText = string;
-            
+            }
             return this;
         }
     }
@@ -38,11 +36,17 @@ if(!Element.prototype.getText){
     }
 }
 
+var ClassCheck = function(className){
+    return new RegExp('(^|\\b)' + className.split(' ').join('|') + '(\\b|$)', 'gi');
+}
+
 if (!Element.prototype.addClass) {
     Element.prototype.addClass = function(className){
         if(typeof name === 'string'){
             if(this.className){
-                this.className += ' ' + className;
+                if(!(ClassCheck(className).test(this.className))){
+                    this.className += ' ' + className;
+                }
             }else{
                 this.className = className;
             }
@@ -59,7 +63,7 @@ if (!Element.prototype.removeClass) {
                 this.classList.remove(className);
             else
                 this.className = this.className.replace(
-                    new RegExp('(^|\\b)' + className.split(' ').join('|') + '(\\b|$)', 'gi'),
+                    ClassCheck(className),
                     ' '
                 );
         }
@@ -126,6 +130,11 @@ Lib.hasProp = {}.hasOwnProperty;
 Lib.slice = [].slice,
 Lib.indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
+Lib.filterInt = function (value) {
+  if(/^(\-|\+)?([0-9]+|Infinity)$/.test(value))
+    return Number(value);
+  return NaN;
+}
 
 Lib.deepExtend = function deepExtend(out){
     out = out || {};
