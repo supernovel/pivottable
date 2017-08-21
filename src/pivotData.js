@@ -53,10 +53,11 @@ PivotData.forEachRecord = function(options, callback) {
     options = options || {};
 
     var input = options.input, 
+        name = options.name,
         derivedAttributes = options.derivedAttributes,
         addRecord, compactRecord, 
         i, j, k, l, 
-        len1, record, ref, results, results1, tblCols;
+        len1, record, ref, results, tblCols;
 
     if(!input){
         throw new Error("unknown input (Empty)");
@@ -65,21 +66,26 @@ PivotData.forEachRecord = function(options, callback) {
     if (Lib.isEmptyObject(derivedAttributes)) {
         addRecord = callback;
     } else {
-        addRecord = function(record) {
+        addRecord = function(record, name) {
             var k, ref, v;
             for (k in derivedAttributes) {
                 v = derivedAttributes[k];
-                record[k] = (ref = v(record)) != null ? ref : record[k];
+                if(v instanceof Function){
+                    record[k] = (ref = v(record)) != null ? ref : record[k];
+                }else if(v === 'd'){
+                    delete record[k];
+                }
             }
-            return callback(record);
+            return callback(record, name);
         };
     }
 
     if (Lib.isFunction(input)) {
         return input(addRecord);
     } else if (Lib.isArray(input)) {
+        results = [];
+
         if (Lib.isArray(input[0])) {
-            results = [];
             for (i in input) {
                 if (!Lib.hasProp.call(input, i)) continue;
                 
@@ -97,19 +103,25 @@ PivotData.forEachRecord = function(options, callback) {
                     k = ref[j];
                     record[k] = compactRecord[j];
                 }
-                results.push(addRecord(record, options.name));
+                results.push(addRecord(record, name));
             }
-            return results;
-        } else {
-            results1 = [];
-            
+        } else if(input[0].name && input[0].data){
+            for (i in input) {
+                results.push(
+                    this.forEachRecord({
+                        input: input[i].data,
+                        name: input[i].name
+                    },addRecord)
+                );
+            }
+        } else{
             for (l = 0, len1 = input.length; l < len1; l++) {
                 record = input[l];
-                results1.push(addRecord(record, options.name));
+                results.push(addRecord(record, name));
             }
-
-            return results1;
         }
+
+        return results;
     }else{
         throw new Error("unknown input format");
     }

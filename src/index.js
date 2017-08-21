@@ -68,38 +68,57 @@ Pivot.pivotUI = function pivotUI(options) {
     container.__pivotInput__ = options;
 
     try {
-        var attrValues = {},
-            materializedInput =  [],
-            recordsProcessed = 0;
+        var materializedInput =  [/*
+                {
+                    name: <string> tablename,
+                    data: <array> tabledata,
+                    attrValues: <object> tableAttrValues
+                }
+            */],
+            materializedCheckName = [],
+            recordsProcessed = 0,
+            refreshFunc = {};
 
         PivotData.forEachRecord({
                 input: input, 
+                name: inputOpts.name,
                 derivedAttributes: inputOpts.derivedAttributes
             },
             function(record, name) {
-                var base, _ref0, value;
+                var base, _ref0, value, target;
                 
                 if (!inputOpts.filter(record)) {
                     return;
                 }
+
+                var tableIdx = materializedCheckName.indexOf(name);
                 
-                materializedInput.push(record);
+                if(tableIdx === -1){
+                    tableIdx = materializedCheckName.push(name) - 1;
+                    materializedInput[tableIdx] = {
+                        name: name,
+                        data: [],
+                        attrValues: {}
+                    }
+                }
+                
+                (target = materializedInput[tableIdx]).data.push(record);
                 
                 for(var attr in record) {
                     if (!Lib.hasProp.call(record, attr)) continue;
-                    if (attrValues[attr] == null) {
-                        attrValues[attr] = {};
+                    if (target.attrValues[attr] == null) {
+                        target.attrValues[attr] = {};
                         if (recordsProcessed > 0) {
-                            attrValues[attr]["null"] = recordsProcessed;
+                            target.attrValues[attr]["null"] = recordsProcessed;
                         }
                     }
                 }
-                for(var attr in attrValues) {
+                for(var attr in target.attrValues) {
                     value = (_ref0 = record[attr]) != null ? _ref0 : "null";
-                    if ((base = attrValues[attr])[value] == null) {
+                    if ((base = target.attrValues[attr])[value] == null) {
                         base[value] = 0;
                     }
-                    attrValues[attr][value]++;
+                    target.attrValues[attr][value]++;
                 }
 
                 return recordsProcessed++;
@@ -107,734 +126,794 @@ Pivot.pivotUI = function pivotUI(options) {
         );
 
         //테이블 그리기
+        var draw = function draw(tableIdx){
+            var table = materializedInput[tableIdx];
 
-        var refresh; /*= (function(_this) {            line:696
-            return function() {
-                pivotTable.css("opacity", 0.5);
-                return setTimeout(refreshDelayed, 10);
+            var uiTable = target.querySelector('.pvtUi');
+
+            if(!uiTable){
+                uiTable = document.createElement('table')
+                                 .addClass('pvtUi');
+
+                target.appendChild(uiTable);
+            }
+
+            
+            var rendererControl = uiTable.querySelector('.rendererControl'),
+                renderer = uiTable.querySelector('.pvtRenderer'),
+                tableSelect = uiTable.querySelector('.tableSelect');
+            
+            if(!rendererControl){
+                rendererControl = document.createElement('td')
+                                        .addClass('rendererControl');
+                renderer = document.createElement('select')
+                                .addClass('pvtRenderer');
+
+                rendererControl.appendChild(renderer);
+            }
+
+            if(!renderer){
+                renderer = document.createElement('select')
+                        .addClass('pvtRenderer');
+
+                rendererControl.appendChild(renderer);
+            }
+
+            renderer.innerHTML = '';
+            
+            renderer.onchange = function(){
+                return refreshFunc.refresh();
             };
-        })(this);*/
 
-        var uiTable = document.createElement("table")
-                              .addClass('pvtUi');
+            var _ref1 = inputOpts.renderers;
 
-        target.appendChild(uiTable);
-
-        var rendererControl = document.createElement("td"),
-            renderer = document.createElement("select")
-                               .addClass('pvtRenderer'),
-            _tableSelect;
+            for (var x in _ref1) {
+                if (!Lib.hasProp.call(_ref1, x)) continue;
+                var _renderOption = document.createElement("option")
+                                            .setText(_ref1[x].name);
             
-        rendererControl.appendChild(renderer);
-        
-        renderer.onchange = function(){
-            return refresh();
-        };
+                _renderOption.value = x;
 
-        var _ref1 = inputOpts.renderers;
-
-        for (var x in _ref1) {
-            if (!Lib.hasProp.call(_ref1, x)) continue;
-            var _renderOption = document.createElement("option")
-                                    .setText(_ref1[x].name);
-           
-            _renderOption.value = x;
-
-            renderer.appendChild(_renderOption);
-        }
-
-        var unused = document.createElement('td').addClass('pvtAxisContainer pvtUnused');
-       
-        var shownAttributes = (function() {
-            var results;
-            results = [];
-            for (var a in attrValues) {
-                if (Lib.indexOf.call(inputOpts.hiddenAttributes, a) < 0) {
-                    results.push(a);
-                }
+                renderer.appendChild(_renderOption);
             }
-            return results;
-        })();
-
-        var unusedAttrsVerticalAutoOverride = false;
-
-        if (inputOpts.unusedAttrsVertical === "auto") {
-            unusedAttrsVerticalAutoCutoff = 120;
-        } else {
-            unusedAttrsVerticalAutoCutoff = parseInt(inputOpts.unusedAttrsVertical);
-        }
         
-        if (!isNaN(unusedAttrsVerticalAutoCutoff)) {
-            var attrLength = 0;
-            
-            for(var l = 0, len1 = shownAttributes.length; l < len1; l++) {
-                var a = shownAttributes[l];
-                attrLength += a.length;
-            }
-            
-            unusedAttrsVerticalAutoOverride = attrLength > unusedAttrsVerticalAutoCutoff;
-        }
-        
-        if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
-            unused.addClass('pvtVertList');
-        } else {
-            unused.addClass('pvtHorizList');
-        }
+            if(materializedCheckName.length > 1){
+                if(!tableSelect){
+                    tableSelect = document.createElement('select')
+                        .addClass('tableSelect');
 
-        var checkAttr = function(attr, i) {
-            var values = (function() {
-                var results = [];
-
-                for (v in attrValues[attr]) {
-                    results.push(v);
+                    rendererControl.appendChild(tableSelect);
                 }
 
-                return results;
-            })();
+                tableSelect.innerHTML = '';
 
-            var hasExcludedItem = false;
+                for(var x in materializedCheckName){
+                    var _tableOption = document.createElement("option")
+                                               .setText(materializedCheckName[x]);
 
-            var valueList = document.createElement('div')
-                                    .addClass('pvtFilterBox');
+                    _tableOption.value = x;
+
+                    tableSelect.value = tableIdx;
+                    
+                    tableSelect.appendChild(_tableOption);
+                }
+
+                tableSelect.onchange = function(){
+                    return draw(this.value);
+                }
+            }else{
+                if(tableSelect){
+                    rendererControl.removeChild(tableSelect);
+                }
+            }
+
+            var unused = uiTable.querySelector('.pvtAxisContainer.pvtUnused');
+
+            if(!unused){
+                unused = document.createElement('td')
+                                .addClass('pvtAxisContainer pvtUnused');
+
+            }else{
+                Sortable.create(unused).destroy();
+                unused.innerHTML = '';
+            }
+
+            var aggregator = uiTable.querySelector('.pvtAggregator');
             
-            valueList.style.display = 'none';
+            if(!aggregator){
+                aggregator = document.createElement('select')
+                                    .addClass('pvtAggregator');
+
+                var _ref4 = inputOpts.aggregators;
+
+                for(var x in _ref4) {
+                    if (!Lib.hasProp.call(_ref4, x)) continue;
+
+                    var _option1 = document.createElement('option')
+                                        .setText(_ref4[x].name);
+
+                    _option1.value = x;
+
+                    aggregator.appendChild(_option1);
+                }
+            }
+
+            aggregator.onchange = function() {
+                return refreshFunc.refresh();
+            };
+
+            uiTable.innerHTML = '';
             
-            var _h0 = document.createElement('h4'),
-                _span0 = document.createElement('span'),
-                _span1 = document.createElement('span')
-                                 .addClass('count');
+            var attrValues = table.attrValues,
+                shownAttributes = (function() {
+                    var results;
+                    results = [];
+                    for (var a in attrValues) {
+                        if (Lib.indexOf.call(inputOpts.hiddenAttributes, a) < 0) {
+                            results.push(a);
+                        }
+                    }
+                    return results;
+                })(),
+                unusedAttrsVerticalAutoOverride = false;
 
-            _span0.setText(attr);
-            _span1.setText(["(",values.length,")"].join(''));
-
-            _h0.appendChild(_span0);
-            _h0.appendChild(_span1);
-            
-            valueList.appendChild(_h0);
-            
-            if (values.length > inputOpts.menuLimit) {
-                var _p0 = document.createElement('p');
-
-                _p0.innerHTML = inputOpts.localeStrings.tooMany;
-
-                valueList.appendChild(_p0);
+            if (inputOpts.unusedAttrsVertical === "auto") {
+                unusedAttrsVerticalAutoCutoff = 120;
             } else {
-                if (values.length > 5) {
-                    var controls = document.createElement('p');
-                        sorter = Lib.getSort(inputOpts.sorters, attr);
-                        placeholder = inputOpts.localeStrings.filterResults;
+                unusedAttrsVerticalAutoCutoff = parseInt(inputOpts.unusedAttrsVertical);
+            }
+            
+            if (!isNaN(unusedAttrsVerticalAutoCutoff)) {
+                var attrLength = 0;
+                
+                for(var l = 0, len1 = shownAttributes.length; l < len1; l++) {
+                    var a = shownAttributes[l];
+                    attrLength += a.length;
+                }
+                
+                unusedAttrsVerticalAutoOverride = attrLength > unusedAttrsVerticalAutoCutoff;
+            }
+            
+            if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
+                unused.addClass('pvtVertList');
+                unused.removeClass('pvtHorizList');
+            } else {
+                unused.addClass('pvtHorizList');
+                unused.removeClass('pvtVertList');
+            }
 
-                    valueList.appendChild(controls);
+            var checkAttr = function(attr, i) {
+                var values = (function() {
+                        var results = [];
 
-                    var _searchInput = document.createElement('input')
-                                          .addClass('pvtSearch');
+                        for (v in attrValues[attr]) {
+                            results.push(v);
+                        }
 
-                    _searchInput.type = 'text';
-                    _searchInput.setAttribute('placeholder', placeholder);
+                        return results;
+                    })();
 
-                    _searchInput.onkeyup = function(){
-                        var accept, 
-                            accept_gen, 
-                            filter = this.value.toLowerCase().trim();
-                        
-                        accept_gen = function(prefix, accepted) {
-                            return function(v) {
-                                var _ref2,
-                                    real_filter = filter.substring(prefix.length).trim();
-                                
-                                if (real_filter.length === 0) {
-                                    return true;
-                                }
-                                
-                                _ref2 = Math.sign(sorter(v.toLowerCase(), real_filter))
+                var hasExcludedItem = false;
 
-                                return Lib.indexOf.call(accepted, _ref2) >= 0;
+                var valueList = document.createElement('div')
+                                        .addClass('pvtFilterBox');
+                
+                valueList.style.display = 'none';
+                
+                var _h0 = document.createElement('h4'),
+                    _span0 = document.createElement('span'),
+                    _span1 = document.createElement('span')
+                                    .addClass('count');
+
+                _span0.setText(attr);
+                _span1.setText(["(",values.length,")"].join(''));
+
+                _h0.appendChild(_span0);
+                _h0.appendChild(_span1);
+                
+                valueList.appendChild(_h0);
+                
+                if (values.length > inputOpts.menuLimit) {
+                    var _p0 = document.createElement('p');
+
+                    _p0.innerHTML = inputOpts.localeStrings.tooMany;
+
+                    valueList.appendChild(_p0);
+                } else {
+                    if (values.length > 5) {
+                        var controls = document.createElement('p');
+                            sorter = Lib.getSort(inputOpts.sorters, attr);
+                            placeholder = inputOpts.localeStrings.filterResults;
+
+                        valueList.appendChild(controls);
+
+                        var _searchInput = document.createElement('input')
+                                            .addClass('pvtSearch');
+
+                        _searchInput.type = 'text';
+                        _searchInput.setAttribute('placeholder', placeholder);
+
+                        _searchInput.onkeyup = function(){
+                            var accept, 
+                                accept_gen, 
+                                filter = this.value.toLowerCase().trim();
+                            
+                            accept_gen = function(prefix, accepted) {
+                                return function(v) {
+                                    var _ref2,
+                                        real_filter = filter.substring(prefix.length).trim();
+                                    
+                                    if (real_filter.length === 0) {
+                                        return true;
+                                    }
+                                    
+                                    _ref2 = Math.sign(sorter(v.toLowerCase(), real_filter))
+
+                                    return Lib.indexOf.call(accepted, _ref2) >= 0;
+                                };
                             };
+
+                            accept = filter.startsWith(">=") ? 
+                                        accept_gen(">=", [1, 0]) : 
+                                        filter.startsWith("<=") ? 
+                                            accept_gen("<=", [-1, 0]) : 
+                                            filter.startsWith(">") ? 
+                                                accept_gen(">", [1]) : 
+                                                filter.startsWith("<") ? 
+                                                    accept_gen("<", [-1]) : 
+                                                    filter.startsWith("~") ? 
+                                                        function(v) {
+                                                            if (filter.substring(1).trim().length === 0) {
+                                                                return true;
+                                                            }
+                                                            return v.toLowerCase().match(filter.substring(1));
+                                                        } : 
+                                                        function(v) {
+                                                            return v.toLowerCase().indexOf(filter) !== -1;
+                                                        };
+
+                            valueList.querySelectorAll('.pvtCheckContainer p label span.value')
+                                    .forEach(function(node) {
+                                        if (accept(node.getText())) {
+                                            return node.parentNode.parentNode.style.display='';
+                                        } else {
+                                            return node.parentNode.parentNode.style.display='none';
+                                        }
+                                    });
+                        }
+
+                        controls.appendChild(_searchInput);
+
+                        var _br0 = document.createElement('br');
+
+                        controls.appendChild(_br0);
+
+                        var _selectAllButton = document.createElement('button'),
+                            _selectNoneButton = document.createElement('button');
+
+                        _selectAllButton.type = _selectNoneButton.type = 'button';
+
+                        _selectAllButton.innerHTML = inputOpts.localeStrings.selectAll;
+                        _selectAllButton.onclick = function() {
+                            valueList.querySelectorAll('input:not(:checked)')
+                                    .forEach(function(node){
+                                        if(node.style.display !== 'none'){ 
+                                            node.checked = true;
+                                            node.toggleClass('changed');
+                                        }
+                                    });
                         };
 
-                        accept = filter.startsWith(">=") ? 
-                                    accept_gen(">=", [1, 0]) : 
-                                    filter.startsWith("<=") ? 
-                                        accept_gen("<=", [-1, 0]) : 
-                                        filter.startsWith(">") ? 
-                                            accept_gen(">", [1]) : 
-                                            filter.startsWith("<") ? 
-                                                accept_gen("<", [-1]) : 
-                                                filter.startsWith("~") ? 
-                                                    function(v) {
-                                                        if (filter.substring(1).trim().length === 0) {
-                                                            return true;
-                                                        }
-                                                        return v.toLowerCase().match(filter.substring(1));
-                                                    } : 
-                                                    function(v) {
-                                                        return v.toLowerCase().indexOf(filter) !== -1;
-                                                    };
+                        _selectNoneButton.innerHTML = inputOpts.localeStrings.selectNone;
+                        _selectNoneButton.onclick = function() {
+                            valueList.querySelectorAll('input:checked')
+                                    .forEach(function(node){
+                                        if(node.style.display !== 'none'){
+                                            node.checked = false;
+                                            node.toggleClass('changed');
+                                        }
+                                    });
+                        };
 
-                        valueList.querySelectorAll('.pvtCheckContainer p label span.value')
-                                 .forEach(function(node) {
-                                     if (accept(node.getText())) {
-                                         return node.parentNode.parentNode.style.display='';
-                                     } else {
-                                         return node.parentNode.parentNode.style.display='none';
-                                     }
-                                 });
+                        controls.appendChild(_selectAllButton);
+                        controls.appendChild(_selectNoneButton);
                     }
 
-                    controls.appendChild(_searchInput);
+                    var checkContainer = document.createElement('div')
+                                                .addClass("pvtCheckContainer");
 
-                    var _br0 = document.createElement('br');
+                    valueList.appendChild(checkContainer);
 
-                    controls.appendChild(_br0);
+                    var _ref3 = values.sort(Lib.getSort(inputOpts.sorters, attr));
 
-                    var _selectAllButton = document.createElement('button'),
-                        _selectNoneButton = document.createElement('button');
+                    for (var n = 0, len2 = _ref3.length; n < len2; n++) {
+                        var value = _ref3[n],
+                            valueCount = attrValues[attr][value],
+                            filterItem = document.createElement('label'),
+                            filterItemExcluded = false;
+                        
+                        if (inputOpts.inclusions[attr]) {
+                            filterItemExcluded = (Lib.indexOf.call(inputOpts.inclusions[attr], value) < 0);
+                        } else if (inputOpts.exclusions[attr]) {
+                            filterItemExcluded = (Lib.indexOf.call(inputOpts.exclusions[attr], value) >= 0);
+                        }
 
-                    _selectAllButton.type = _selectNoneButton.type = 'button';
+                        hasExcludedItem || (hasExcludedItem = filterItemExcluded);
+                        
+                        var _filterInput = document.createElement('input')
+                                            .addClass('pvtFilter')
+                        
+                        _filterInput.type = 'checkbox';
+                        _filterInput.setAttribute('checked', !filterItemExcluded);
+                        _filterInput.setAttribute('data-filterAttr', attr);
+                        _filterInput.setAttribute('data-filterValue', value);
 
-                    _selectAllButton.innerHTML = inputOpts.localeStrings.selectAll;
-                    _selectAllButton.onclick = function() {
-                        valueList.querySelectorAll('input:not(:checked)')
-                                 .forEach(function(node){
-                                    if(node.style.display !== 'none'){ 
-                                        node.checked = true;
-                                        node.toggleClass('changed');
-                                    }
-                                 });
-                    };
+                        _filterInput.onchange = function(){
+                            return this.toggleClass("changed");
+                        }
 
-                    _selectNoneButton.innerHTML = inputOpts.localeStrings.selectNone;
-                    _selectNoneButton.onclick = function() {
-                        valueList.querySelectorAll('input:checked')
-                                 .forEach(function(node){
-                                    if(node.style.display !== 'none'){
-                                        node.checked = false;
-                                        node.toggleClass('changed');
-                                    }
-                                 });
-                    };
+                        filterItem.appendChild(_filterInput);
+                        
+                        var _span2 = document.createElement('span')
+                                            .addClass('value')
+                                            .setText(value),
+                            _span3 = document.createElement('span')
+                                            .addClass('count')
+                                            .setText(["(",valueCount,")"].join(''));
+                        
+                        filterItem.appendChild(_span2);
+                        filterItem.appendChild(_span3);
 
-                    controls.appendChild(_selectAllButton);
-                    controls.appendChild(_selectNoneButton);
+                        var _p1 = document.createElement('p');
+
+                        _p1.appendChild(filterItem);
+                        checkContainer.appendChild(_p1);
+                    }
                 }
 
-                var checkContainer = document.createElement('div')
-                                             .addClass("pvtCheckContainer");
+                var triangleLink = document.createElement('span')
+                                        .addClass('pvtTriangle');
 
-                valueList.appendChild(checkContainer);
+                triangleLink.innerHTML = " &#x25BE;";
 
-                var _ref3 = values.sort(Lib.getSort(inputOpts.sorters, attr));
-
-                for (var n = 0, len2 = _ref3.length; n < len2; n++) {
-                    var value = _ref3[n],
-                        valueCount = attrValues[attr][value],
-                        filterItem = document.createElement('label'),
-                        filterItemExcluded = false;
+                triangleLink.onclick = function(e){
+                    var left = e.currentTarget.offsetLeft,
+                        top = e.currentTarget.offsetTop;
                     
-                    if (inputOpts.inclusions[attr]) {
-                        filterItemExcluded = (Lib.indexOf.call(inputOpts.inclusions[attr], value) < 0);
-                    } else if (inputOpts.exclusions[attr]) {
-                        filterItemExcluded = (Lib.indexOf.call(inputOpts.exclusions[attr], value) >= 0);
+
+                    valueList.style.left = left + 10;
+                    valueList.style.top = top + 10;
+                    valueList.style.display = '';
+
+                    return false;
+                }
+
+                var attrElem = document.createElement('li')
+                                    .addClass("axis_" + i); 
+                    _span4 = document.createElement('span')
+                                    .addClass('pvtAttr')
+                                    .setText(attr);
+                                    
+                _span4.setAttribute('data-attrName', attr);
+
+                _span4.appendChild(triangleLink);
+                attrElem.appendChild(_span4);
+
+                if (hasExcludedItem) {
+                    attrElem.addClass('pvtFilteredAttribute');
+                }
+
+                var closeFilterBox = function() {
+                    var _checkBox = valueList.querySelectorAll("[type='checkbox']"),
+                        _checked = valueList.querySelectorAll("[type='checkbox']:checked"),
+                        _pvtSearch = valueList.querySelectorAll(".pvtSearch"),
+                        _pvtCheckContainer = valueList.querySelectorAll(".pvtCheckContainer p");
+
+                    if (_checkBox.length > _checked.length) {
+                        attrElem.addClass("pvtFilteredAttribute");
+                    } else {
+                        attrElem.removeClass("pvtFilteredAttribute");
                     }
 
-                    hasExcludedItem || (hasExcludedItem = filterItemExcluded);
-                    
-                    var _filterInput = document.createElement('input')
-                                          .addClass('pvtFilter')
-                    
-                    _filterInput.type = 'checkbox';
-                    _filterInput.setAttribute('checked', !filterItemExcluded);
-                    _filterInput.setAttribute('data-filterAttr', attr);
-                    _filterInput.setAttribute('data-filterValue', value);
+                    _pvtSearch.forEach(function(node){
+                        node.value = '';
+                    });
+                    _pvtCheckContainer.forEach(function(node){
+                        node.style.display = '';
+                    });
 
-                    _filterInput.onchange = function(){
-                        return this.toggleClass("changed");
+                    valueList.style.display = 'none';
+                };
+
+                var finalButtons = document.createElement('p');
+
+                valueList.appendChild(finalButtons);
+
+                if (values.length <= inputOpts.menuLimit) {
+                    var _applyButton = document.createElement('button')
+                                        .setText(inputOpts.localeStrings.apply);
+
+                    _applyButton.type = 'button';
+                    _applyButton.onclick = function(){
+                        var _changed = valueList.querySelectorAll(".changed");
+
+                        _changed.forEach(function(node){
+                            node.removeClass('changed');
+                        })
+
+                        if (_changed.length) {
+                            refreshFunc.refresh();
+                        }
+
+                        return closeFilterBox();
                     }
 
-                    filterItem.appendChild(_filterInput);
-                    
-                    var _span2 = document.createElement('span')
-                                         .addClass('value')
-                                         .setText(value),
-                        _span3 = document.createElement('span')
-                                         .addClass('count')
-                                         .setText(["(",valueCount,")"].join(''));
-                    
-                    filterItem.appendChild(_span2);
-                    filterItem.appendChild(_span3);
-
-                    var _p1 = document.createElement('p');
-
-                    _p1.appendChild(filterItem);
-                    checkContainer.appendChild(_p1);
-                }
-            }
-
-            var triangleLink = document.createElement('span')
-                                       .addClass('pvtTriangle');
-
-            triangleLink.innerHTML = " &#x25BE;";
-
-            triangleLink.onclick = function(e){
-                var left = e.currentTarget.offsetLeft,
-                    top = e.currentTarget.offsetTop;
-                
-
-                valueList.style.left = left + 10;
-                valueList.style.top = top + 10;
-                valueList.style.display = '';
-
-                return false;
-            }
-
-            var attrElem = document.createElement('li')
-                                   .addClass("axis_" + i); 
-                _span4 = document.createElement('span')
-                                 .addClass('pvtAttr')
-                                 .setText(attr);
-                                 
-            _span4.setAttribute('data-attrName', attr);
-
-            _span4.appendChild(triangleLink);
-            attrElem.appendChild(_span4);
-
-            if (hasExcludedItem) {
-                attrElem.addClass('pvtFilteredAttribute');
-            }
-
-            var closeFilterBox = function() {
-                var _checkBox = valueList.querySelectorAll("[type='checkbox']"),
-                    _checked = valueList.querySelectorAll("[type='checkbox']:checked"),
-                    _pvtSearch = valueList.querySelectorAll(".pvtSearch"),
-                    _pvtCheckContainer = valueList.querySelectorAll(".pvtCheckContainer p");
-
-                if (_checkBox.length > _checked.length) {
-                    attrElem.addClass("pvtFilteredAttribute");
-                } else {
-                    attrElem.removeClass("pvtFilteredAttribute");
+                    finalButtons.appendChild(_applyButton);
                 }
 
-                _pvtSearch.forEach(function(node){
-                    node.value = '';
-                });
-                _pvtCheckContainer.forEach(function(node){
-                    node.style.display = '';
-                });
+                var _cancelButton = document.createElement('button')
+                                    .setText(inputOpts.localeStrings.cancel);
 
-                valueList.style.display = 'none';
-            };
+                _cancelButton.type = 'button';
+                _cancelButton.onclick = function(){
+                    var _checked = valueList.querySelectorAll(".changed:checked"),
+                        _notChecked = valueList.querySelectorAll(".changed:not(:checked)");
 
-            var finalButtons = document.createElement('p');
-
-            valueList.appendChild(finalButtons);
-
-            if (values.length <= inputOpts.menuLimit) {
-                var _applyButton = document.createElement('button')
-                                       .setText(inputOpts.localeStrings.apply);
-
-                _applyButton.type = 'button';
-                _applyButton.onclick = function(){
-                    var _changed = valueList.querySelectorAll(".changed");
-
-                    _changed.forEach(function(node){
+                    _checked.forEach(function(node){
                         node.removeClass('changed');
-                    })
+                        node.checked = false;
+                    });
 
-                    if (_changed.length) {
-                        refresh();
-                    }
+                    _notChecked.forEach(function(node){
+                        node.removeClass('changed');
+                        node.checked = true;
+                    });
 
                     return closeFilterBox();
                 }
 
-                finalButtons.appendChild(_applyButton);
+                finalButtons.appendChild(_cancelButton);
+
+                unused.appendChild(attrElem);
+                unused.appendChild(valueList);
+            };
+
+            for(var i in shownAttributes) {
+                if (!Lib.hasProp.call(shownAttributes, i)) continue;
+                checkAttr(shownAttributes[i], i);
             }
 
-            var _cancelButton = document.createElement('button')
-                                   .setText(inputOpts.localeStrings.cancel);
-
-            _cancelButton.type = 'button';
-            _cancelButton.onclick = function(){
-                var _checked = valueList.querySelectorAll(".changed:checked"),
-                    _notChecked = valueList.querySelectorAll(".changed:not(:checked)");
-
-                _checked.forEach(function(node){
-                    node.removeClass('changed');
-                    node.checked = false;
-                });
-
-                _notChecked.forEach(function(node){
-                    node.removeClass('changed');
-                    node.checked = true;
-                });
-
-                return closeFilterBox();
-            }
-
-            finalButtons.appendChild(_cancelButton);
-
-            unused.appendChild(attrElem);
-            unused.appendChild(valueList);
-        };
-
-        for(var i in shownAttributes) {
-            if (!Lib.hasProp.call(shownAttributes, i)) continue;
-            checkAttr(shownAttributes[i], i);
-        }
-
-        var tr1 = document.createElement('tr');
-        
-        uiTable.appendChild(tr1);
-
-        var aggregator = document.createElement('select')
-                                 .addClass('pvtAggregator');
-        
-        aggregator.onchange = function() {
-            return refresh();
-        };
-
-        var _ref4 = inputOpts.aggregators;
-
-        for(var x in _ref4) {
-            if (!Lib.hasProp.call(_ref4, x)) continue;
-
-            var _option1 = document.createElement('option')
-                                   .setText(_ref4[x].name);
-
-            _option1.value = x;
-
-            aggregator.appendChild(_option1);
-        }
-
-        ordering = {
-            key_a_to_z: {
-                rowSymbol: "&varr;",
-                colSymbol: "&harr;",
-                next: "value_a_to_z"
-            },
-            value_a_to_z: {
-                rowSymbol: "&darr;",
-                colSymbol: "&rarr;",
-                next: "value_z_to_a"
-            },
-            value_z_to_a: {
-                rowSymbol: "&uarr;",
-                colSymbol: "&larr;",
-                next: "key_a_to_z"
-            }
-        };
-
-        var rowOrderArrow = document.createElement('a')
-                                    .addClass('pvtRowOrder');
-        
-        rowOrderArrow.setAttribute('role','button');
-        rowOrderArrow.setAttribute('data-order',inputOpts.rowOrder);
-        rowOrderArrow.innerHTML = ordering[inputOpts.rowOrder].rowSymbol;
-        rowOrderArrow.onclick = function(){
-            this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
-            this.innerHTML = ordering[this.getAttribute("data-order")].rowSymbol;
+            var tr1 = document.createElement('tr');
             
-            return refresh();
-        }
+            uiTable.appendChild(tr1);
 
-        var colOrderArrow = document.createElement('a')
-                                    .addClass('pvtColOrder');
-        
-        colOrderArrow.setAttribute('role','button');
-        colOrderArrow.setAttribute('data-order',inputOpts.colOrder);
-        colOrderArrow.innerHTML = ordering[inputOpts.colOrder].colSymbol;
-        colOrderArrow.onclick = function(){
-            this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
-            this.innerHTML = ordering[this.getAttribute("data-order")].colSymbol;
-            
-            return refresh();
-        }
-
-        var _td0 = document.createElement('td')
-                           .addClass('pvtVals'),
-            _td1 = document.createElement('td')
-                           .addClass('pvtAxisContainer pvtHorizList pvtCols'),
-            _br1 = document.createElement('br');
-
-        _td0.appendChild(aggregator);
-        _td0.appendChild(rowOrderArrow);
-        _td0.appendChild(colOrderArrow);
-        _td0.appendChild(_br1);
-
-        tr1.appendChild(_td0);
-        tr1.appendChild(_td1);
-        
-        var tr2 = document.createElement('tr');
-
-        uiTable.appendChild(tr2);
-
-        var _td2 = document.createElement('td')
-                            .addClass('pvtAxisContainer pvtRows'),
-            pivotTable = document.createElement('td')
-                            .addClass('pvtRendererArea');
-
-        _td2.setAttribute("valign", "top");
-        pivotTable.setAttribute("valign", "top");
-
-        tr2.appendChild(_td2);
-        tr2.appendChild(pivotTable);
-
-        if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
-            var _child1 = uiTable.querySelector('tr:nth-child(1)'),
-                _child2 = uiTable.querySelector('tr:nth-child(2)');
-           
-            _child1.insertBefore(rendererControl, _child1.firstChild);
-            _child2.insertBefore(rendererControl, _child2.firstChild);
-        } else {
-            var _tr0 = document.createElement('tr');
-
-            _tr0.appendChild(rendererControl);
-            _tr0.appendChild(unused);
-
-            uiTable.insertBefore(_tr0, uiTable.firstChild);
-        }
-        
-        var _ref5 = inputOpts.cols,
-            _pvtCols = target.querySelector(".pvtCols");
-
-        for(var n = 0, len2 = _ref5.length; n < len2; n++) {
-            var x = _ref5[n],
-                _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
-            
-            _pvtCols.appendChild(_axis);
-        }
-        
-        var _ref6 = inputOpts.rows,
-            _pvtRows = target.querySelector(".pvtRows");
-        
-        for(var o = 0, len3 = _ref6.length; o < len3; o++) {
-            var x = _ref6[o],
-                _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
-        }
-        
-        if (inputOpts.aggregatorName != null) {
-            var _pvtAggregator = target.querySelector(".pvtAggregator");
-            
-            _pvtAggregator.value = inputOpts.aggregatorName;
-        }
-
-        if (inputOpts.rendererName != null) {
-            var _pvtRenderer = target.querySelector(".pvtRenderer");
-            
-            _pvtRenderer.value = inputOpts.rendererName;
-        }
-
-        var initialRender = true;
-        var refreshDelayed = (function(_this) {
-            return function() {
-                var _ref7;
-                
-                var subopts = {
-                        derivedAttributes: inputOpts.derivedAttributes,
-                        localeStrings: inputOpts.localeStrings,
-                        rendererOptions: inputOpts.rendererOptions,
-                        sorters: inputOpts.sorters,
-                        cols: [],
-                        rows: [],
-                        dataClass: inputOpts.dataClass
-                    },
-                    numInputsToProcess = (_ref7 = inputOpts.aggregators[aggregator.value].fn([])().numInputs) != null ? _ref7 : 0,
-                    vals = [];
-
-
-                _this.querySelectorAll('.pvtRows li span.pvtAttr')
-                     .forEach(function(node){
-                        if(node.parentNode.style.display !== 'none' && node.style.display !== 'none'){
-                            return subopts.rows.push(node.getAttribute("data-attrName"));
-                        }
-                     });
-
-                _this.querySelectorAll('.pvtCols li span.pvtAttr')
-                     .forEach(function(node){
-                        if(node.parentNode.style.display !== 'none' && node.style.display !== 'none'){
-                            return subopts.cols.push(node.getAttribute("data-attrName"));
-                        }
-                     });     
-
-                _this.querySelectorAll('.pvtVals select.pvtAttrDropdown')
-                     .forEach(function(node){
-                        if (numInputsToProcess === 0) {
-                            return node.parentNode.removeChild(node);
-                        } else {
-                            numInputsToProcess--;
-                            if (node.value !== "") {
-                                return vals.push(node.value);
-                            }
-                        }
-                     });
-
-                if (numInputsToProcess !== 0) {
-                    var pvtVals = _this.querySelector(".pvtVals");
-
-
-                    for (var x = 0, t = 0, _ref8 = numInputsToProcess; 0 <= _ref8 ? t < _ref8 : t > _ref8; x = 0 <= _ref8 ? ++t : --t) {
-                        var newDropdown = document.createElement('select')
-                                                  .addClass('pvtAttrDropdown'),
-                            _selectOption = document.createElement('option')
-                                               .setText(inputOpts.localeStrings.optionSelect);
-
-                         
-                        newDropdown.appendChild(_selectOption);
-                        newDropdown.onchange = function(){
-                            return refresh();
-                        };
-
-                        for (var u = 0, len4 = shownAttributes.length; u < len4; u++) {
-                            var attr = shownAttributes[u],
-                                _attrOption = document.createElement('option')
-                                                   .setText(attr);
-
-                            _attrOption.value = attr;
-
-                            newDropdown.appendChild(_attrOption);
-                        }
-
-                        pvtVals.appendChild(newDropdown);
-                    }
+            ordering = {
+                key_a_to_z: {
+                    rowSymbol: "&varr;",
+                    colSymbol: "&harr;",
+                    next: "value_a_to_z"
+                },
+                value_a_to_z: {
+                    rowSymbol: "&darr;",
+                    colSymbol: "&rarr;",
+                    next: "value_z_to_a"
+                },
+                value_z_to_a: {
+                    rowSymbol: "&uarr;",
+                    colSymbol: "&larr;",
+                    next: "key_a_to_z"
                 }
+            };
 
-                if (initialRender) {
-                    var i = 0;
+            var rowOrderArrow = document.createElement('a')
+                                        .addClass('pvtRowOrder');
+            
+            rowOrderArrow.setAttribute('role','button');
+            rowOrderArrow.setAttribute('data-order',inputOpts.rowOrder);
+            rowOrderArrow.innerHTML = ordering[inputOpts.rowOrder].rowSymbol;
+            rowOrderArrow.onclick = function(){
+                this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
+                this.innerHTML = ordering[this.getAttribute("data-order")].rowSymbol;
+                
+                return refreshFunc.refresh();
+            }
 
-                    vals = inputOpts.vals;
+            var colOrderArrow = document.createElement('a')
+                                        .addClass('pvtColOrder');
+            
+            colOrderArrow.setAttribute('role','button');
+            colOrderArrow.setAttribute('data-order',inputOpts.colOrder);
+            colOrderArrow.innerHTML = ordering[inputOpts.colOrder].colSymbol;
+            colOrderArrow.onclick = function(){
+                this.setAttribute('data-order', ordering[this.getAttribute("data-order")].next);
+                this.innerHTML = ordering[this.getAttribute("data-order")].colSymbol;
+                
+                return refreshFunc.refresh();
+            }
+
+            var _td0 = document.createElement('td')
+                            .addClass('pvtVals'),
+                _td1 = document.createElement('td')
+                            .addClass('pvtAxisContainer pvtHorizList pvtCols'),
+                _br1 = document.createElement('br');
+
+            _td0.appendChild(aggregator);
+            _td0.appendChild(rowOrderArrow);
+            _td0.appendChild(colOrderArrow);
+            _td0.appendChild(_br1);
+
+            tr1.appendChild(_td0);
+            tr1.appendChild(_td1);
+            
+            var tr2 = document.createElement('tr');
+
+            uiTable.appendChild(tr2);
+
+            var _td2 = document.createElement('td')
+                                .addClass('pvtAxisContainer pvtRows'),
+                pivotTable = document.createElement('td')
+                                .addClass('pvtRendererArea');
+
+            _td2.setAttribute("valign", "top");
+            pivotTable.setAttribute("valign", "top");
+
+            tr2.appendChild(_td2);
+            tr2.appendChild(pivotTable);
+
+            if (inputOpts.unusedAttrsVertical === true || unusedAttrsVerticalAutoOverride) {
+                var _child1 = uiTable.querySelector('tr:nth-child(1)'),
+                    _child2 = uiTable.querySelector('tr:nth-child(2)');
+            
+                _child1.insertBefore(rendererControl, _child1.firstChild);
+                _child2.insertBefore(rendererControl, _child2.firstChild);
+            } else {
+                var _tr0 = document.createElement('tr');
+
+                _tr0.appendChild(rendererControl);
+                _tr0.appendChild(unused);
+
+                uiTable.insertBefore(_tr0, uiTable.firstChild);
+            }
+            
+            var _ref5 = inputOpts.cols,
+                _pvtCols = target.querySelector(".pvtCols");
+
+            for(var n = 0, len2 = _ref5.length; n < len2; n++) {
+                var x = _ref5[n],
+                    _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
+                
+                _pvtCols.appendChild(_axis);
+            }
+            
+            var _ref6 = inputOpts.rows,
+                _pvtRows = target.querySelector(".pvtRows");
+            
+            for(var o = 0, len3 = _ref6.length; o < len3; o++) {
+                var x = _ref6[o],
+                    _axis = target.querySelector(".axis_" + shownAttributes.indexOf(x));
+            }
+            
+            if (inputOpts.aggregatorName != null) {
+                var _pvtAggregator = target.querySelector(".pvtAggregator");
+                
+                _pvtAggregator.value = inputOpts.aggregatorName;
+            }
+
+            if (inputOpts.rendererName != null) {
+                var _pvtRenderer = target.querySelector(".pvtRenderer");
+                
+                _pvtRenderer.value = inputOpts.rendererName;
+            }
+
+            var initialRender = true;
+            
+            refreshFunc.refreshDelayed = function() {
+                    var _ref7;
                     
-                    _this.querySelectorAll(".pvtVals select.pvtAttrDropdown")
-                         .forEach(function(node) {
-                             node.value = vals[i];
-                             return i++;
-                         });
+                    var subopts = {
+                            derivedAttributes: inputOpts.derivedAttributes,
+                            localeStrings: inputOpts.localeStrings,
+                            rendererOptions: inputOpts.rendererOptions,
+                            sorters: inputOpts.sorters,
+                            cols: [],
+                            rows: [],
+                            dataClass: inputOpts.dataClass
+                        },
+                        numInputsToProcess = (_ref7 = inputOpts.aggregators[aggregator.value].fn([])().numInputs) != null ? _ref7 : 0,
+                        vals = [];
 
-                    initialRender = false;
-                }
-                
-                subopts.aggregatorName = aggregator.value;
-                subopts.vals = vals;
-                subopts.aggregator = inputOpts.aggregators[aggregator.value].fn(vals);
-                subopts.renderer = inputOpts.renderers[renderer.value].fn;
-                subopts.rowOrder = rowOrderArrow.getAttribute("data-order");
-                subopts.colOrder = colOrderArrow.getAttribute("data-order");
-                
-                var exclusions = {};
-                
-                _this.querySelectorAll('input.pvtFilter')
-                     .forEach(function(node) {
-                        if(!node.checked){
+
+                    target.querySelectorAll('.pvtRows li span.pvtAttr')
+                        .forEach(function(node){
+                            if(node.parentNode.style.display !== 'none' && node.style.display !== 'none'){
+                                return subopts.rows.push(node.getAttribute("data-attrName"));
+                            }
+                        });
+
+                    target.querySelectorAll('.pvtCols li span.pvtAttr')
+                        .forEach(function(node){
+                            if(node.parentNode.style.display !== 'none' && node.style.display !== 'none'){
+                                return subopts.cols.push(node.getAttribute("data-attrName"));
+                            }
+                        });     
+
+                    target.querySelectorAll('.pvtVals select.pvtAttrDropdown')
+                        .forEach(function(node){
+                            if (numInputsToProcess === 0) {
+                                return node.parentNode.removeChild(node);
+                            } else {
+                                numInputsToProcess--;
+                                if (node.value !== "") {
+                                    return vals.push(node.value);
+                                }
+                            }
+                        });
+
+                    if (numInputsToProcess !== 0) {
+                        var pvtVals = target.querySelector(".pvtVals");
+
+
+                        for (var x = 0, t = 0, _ref8 = numInputsToProcess; 0 <= _ref8 ? t < _ref8 : t > _ref8; x = 0 <= _ref8 ? ++t : --t) {
+                            var newDropdown = document.createElement('select')
+                                                    .addClass('pvtAttrDropdown'),
+                                _selectOption = document.createElement('option')
+                                                .setText(inputOpts.localeStrings.optionSelect);
+
+                            
+                            newDropdown.appendChild(_selectOption);
+                            newDropdown.onchange = function(){
+                                return refreshFunc.refresh();
+                            };
+
+                            for (var u = 0, len4 = shownAttributes.length; u < len4; u++) {
+                                var attr = shownAttributes[u],
+                                    _attrOption = document.createElement('option')
+                                                    .setText(attr);
+
+                                _attrOption.value = attr;
+
+                                newDropdown.appendChild(_attrOption);
+                            }
+
+                            pvtVals.appendChild(newDropdown);
+                        }
+                    }
+
+                    if (initialRender) {
+                        var i = 0;
+
+                        vals = inputOpts.vals;
+                        
+                        target.querySelectorAll(".pvtVals select.pvtAttrDropdown")
+                            .forEach(function(node) {
+                                node.value = vals[i];
+                                return i++;
+                            });
+
+                        initialRender = false;
+                    }
+                    
+                    subopts.aggregatorName = aggregator.value;
+                    subopts.vals = vals;
+                    subopts.aggregator = inputOpts.aggregators[aggregator.value].fn(vals);
+                    subopts.renderer = inputOpts.renderers[renderer.value].fn;
+                    subopts.rowOrder = rowOrderArrow.getAttribute("data-order");
+                    subopts.colOrder = colOrderArrow.getAttribute("data-order");
+                    
+                    var exclusions = {};
+                    
+                    target.querySelectorAll('input.pvtFilter')
+                        .forEach(function(node) {
+                            if(!node.checked){
+                                var filter = [
+                                    node.getAttribute('data-filterAttr'),
+                                    node.getAttribute('data-filterValue')
+                                ];
+
+                                if (exclusions[filter[0]] != null) {
+                                    return exclusions[filter[0]].push(filter[1]);
+                                } else {
+                                    return exclusions[filter[0]] = [filter[1]];
+                                }
+                            }
+                        });
+
+                    var inclusions = {};
+                    
+                    target.querySelectorAll('input.pvtFilter:checked')
+                        .forEach(function(node) {
                             var filter = [
                                 node.getAttribute('data-filterAttr'),
                                 node.getAttribute('data-filterValue')
                             ];
-
+                            
                             if (exclusions[filter[0]] != null) {
-                                return exclusions[filter[0]].push(filter[1]);
-                            } else {
-                                return exclusions[filter[0]] = [filter[1]];
+                                if (inclusions[filter[0]] != null) {
+                                    return inclusions[filter[0]].push(filter[1]);
+                                } else {
+                                    return inclusions[filter[0]] = [filter[1]];
+                                }
                             }
-                        }
-                     });
+                        });
 
-                var inclusions = {};
-                
-                _this.querySelectorAll('input.pvtFilter:checked')
-                     .forEach(function(node) {
-                        var filter = [
-                            node.getAttribute('data-filterAttr'),
-                            node.getAttribute('data-filterValue')
-                        ];
+                    subopts.filter = function(record) {
+                        var _ref9, _ref10;
                         
-                        if (exclusions[filter[0]] != null) {
-                            if (inclusions[filter[0]] != null) {
-                                return inclusions[filter[0]].push(filter[1]);
-                            } else {
-                                return inclusions[filter[0]] = [filter[1]];
-                            }
-                        }
-                    });
-
-                subopts.filter = function(record) {
-                    var _ref9, _ref10;
-                    
-                    if (!inputOpts.filter(record)) {
-                        return false;
-                    }
-
-                    for (var k in exclusions) {
-                        var excludedItems = exclusions[k];
-                        
-                        _ref9 = "" + ((_ref10 = record[k]) != null ?  _ref10 : 'null')
-
-                        if (Lib.indexOf.call(excludedItems, _ref9) >= 0) {
+                        if (!inputOpts.filter(record)) {
                             return false;
                         }
-                    }
-                    return true;
-                };
-                
-                Pivot.pivot({
-                    target: pivotTable,
-                    input: materializedInput, 
-                    inputOpts: subopts
-                });
-                
-                pivotUIOptions = Lib.deepExtend({}, inputOpts, {
-                    cols: subopts.cols,
-                    rows: subopts.rows,
-                    colOrder: subopts.colOrder,
-                    rowOrder: subopts.rowOrder,
-                    vals: vals,
-                    exclusions: exclusions,
-                    inclusions: inclusions,
-                    inclusionsInfo: inclusions,
-                    aggregatorName: aggregator.value,
-                    rendererName: renderer.value
-                });
 
-                _this.__pivotUIContainer__.inputOpts = pivotUIOptions;
-                
-                if (inputOpts.autoSortUnusedAttrs) {
-                    unusedAttrsContainer = _this.querySelector("td.pvtUnused.pvtAxisContainer");
-                    var _liArr = unusedAttrsContainer.querySelectorAll("li");
+                        for (var k in exclusions) {
+                            var excludedItems = exclusions[k];
+                            
+                            _ref9 = "" + ((_ref10 = record[k]) != null ?  _ref10 : 'null')
+
+                            if (Lib.indexOf.call(excludedItems, _ref9) >= 0) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    };
                     
-                    
-                    Array.prototype.sort.call(_liArr, function(a, b) {
-                        return Lib.naturalSort(a.getText(), b.getText());
-                    })
-                    
-                    _liArr.forEach(function(node){
-                        unusedAttrsContainer.appendChild(node);
+                    Pivot.pivot({
+                        target: pivotTable,
+                        input: table.data, 
+                        inputOpts: subopts
                     });
-                }
+                    
+                    pivotUIOptions = Lib.deepExtend({}, inputOpts, {
+                        cols: subopts.cols,
+                        rows: subopts.rows,
+                        colOrder: subopts.colOrder,
+                        rowOrder: subopts.rowOrder,
+                        vals: vals,
+                        exclusions: exclusions,
+                        inclusions: inclusions,
+                        inclusionsInfo: inclusions,
+                        aggregatorName: aggregator.value,
+                        rendererName: renderer.value
+                    });
 
-                pivotTable.style.opacity = 1;
+                    target.__pivotUIContainer__.inputOpts = pivotUIOptions;
+                    
+                    if (inputOpts.autoSortUnusedAttrs) {
+                        unusedAttrsContainer = target.querySelector("td.pvtUnused.pvtAxisContainer");
+                        var _liArr = unusedAttrsContainer.querySelectorAll("li");
+                        
+                        
+                        Array.prototype.sort.call(_liArr, function(a, b) {
+                            return Lib.naturalSort(a.getText(), b.getText());
+                        })
+                        
+                        _liArr.forEach(function(node){
+                            unusedAttrsContainer.appendChild(node);
+                        });
+                    }
 
-                if (inputOpts.onRefresh != null) {
-                    return inputOpts.onRefresh(pivotUIOptions);
-                }
-            };
-        })(target);
-       
-        refresh = (function(_this) {
-            return function() {
-                pivotTable.style.opacity = 0.5;
-                return setTimeout(refreshDelayed, 10);
-            };
-        })(target);
+                    pivotTable.style.opacity = 1;
 
-        refresh();
+                    if (inputOpts.onRefresh != null) {
+                        return inputOpts.onRefresh(pivotUIOptions);
+                    }
+                };
         
-        var _axisContainer = target.querySelectorAll('.pvtAxisContainer')
-                                   .forEach(function(node){
-                                        new Sortable(node,{
-                                            group: 'axis',
-                                            onEnd: function(e){
-                                                return refresh();
-                                            }
+            refreshFunc.refresh = function() {
+                pivotTable.style.opacity = 0.5;
+                return setTimeout(refreshFunc.refreshDelayed, 10);
+            };
+
+            refreshFunc.refresh();
+            
+            var _axisContainer = target.querySelectorAll('.pvtAxisContainer')
+                                        .forEach(function(node){
+                                                new Sortable(node,{
+                                                    group: 'axis',
+                                                    onEnd: refreshFunc.refresh
+                                                });
                                         });
-                                   });
+        };
+
+        draw(0);
     } catch (_error) {
         e = _error;
         if (typeof console !== "undefined" && console !== null) {

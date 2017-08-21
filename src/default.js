@@ -16,6 +16,7 @@ var Default = module.exports = {};
 Default.inputOpts = function(locale, uiFlag){
     if(uiFlag){
         return {
+            name:'unknwon table',
             derivedAttributes: {},
             aggregators: Aggregator.makeLocaleAggregator(locale),
             renderers: Renderer.makeLocaleRenderer(locale),
@@ -40,6 +41,7 @@ Default.inputOpts = function(locale, uiFlag){
         }
     }else{
         return {
+            name:'unknwon table',
             cols: [],
             rows: [],
             vals: [],
