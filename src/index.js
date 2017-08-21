@@ -74,8 +74,7 @@ Pivot.pivotUI = function pivotUI(options) {
 
         PivotData.forEachRecord({
                 input: input, 
-                derivedAttributes: inputOpts.derivedAttributes,
-                multiple: multiple,
+                derivedAttributes: inputOpts.derivedAttributes
             },
             function(record, name) {
                 var base, _ref0, value;

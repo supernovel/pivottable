@@ -1,7 +1,7 @@
 window.onload = function(){
     Pivot.pivotUI({
         target : document.querySelector('#output'),
-        data : [
+        input : [
             ["row","total_bill","tip","sex","smoker","day","time","size"],
             ["1",16.99,1.01,"Female","No","Sun","Dinner",2],
             ["2",10.34,1.66,"Male","No","Sun","Dinner",3],
@@ -248,7 +248,7 @@ window.onload = function(){
             ["243",17.82,1.75,"Male","No","Sat","Dinner",2],
             ["244",18.78,3,"Female","No","Thur","Dinner",2]
             ],
-        dataOpts : {
+        inputOpts : {
         }
     });
 }

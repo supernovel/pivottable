@@ -53,8 +53,7 @@ PivotData.forEachRecord = function(options, callback) {
     options = options || {};
 
     var input = options.input, 
-        derivedAttributes = options.derivedAttributes, 
-        multipleTable = options.multipleTable,
+        derivedAttributes = options.derivedAttributes,
         addRecord, compactRecord, 
         i, j, k, l, 
         len1, record, ref, results, results1, tblCols;
@@ -104,21 +103,9 @@ PivotData.forEachRecord = function(options, callback) {
         } else {
             results1 = [];
             
-            if(multipleTable){
-                for (i in input) {
-                    if(input[i].data && input[i].name){
-                        results1.push(this.forEachRecord({
-                                input: input[i].data,
-                                name: input[i].name
-                            }, addRecord)
-                        )
-                    }
-                }
-            }else{
-                for (l = 0, len1 = input.length; l < len1; l++) {
-                    record = input[l];
-                    results1.push(addRecord(record, options.name));
-                }
+            for (l = 0, len1 = input.length; l < len1; l++) {
+                record = input[l];
+                results1.push(addRecord(record, options.name));
             }
 
             return results1;
