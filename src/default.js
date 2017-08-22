@@ -9,9 +9,7 @@ var Aggregator = require('./aggregator'),
     Renderer = require('./renderer'),
     PivotData = require('./pivotData');
     
-
 var Default = module.exports = {};
-
 
 Default.inputOpts = function(locale, uiFlag){
     if(uiFlag){
@@ -68,7 +66,7 @@ Default.localeOpts = function(locale){
     );
 
     return {
-        rendererOptions: {
+        rendererOpts: {
             localeStrings: localeStrings
         },
         localeStrings: localeStrings

@@ -37,7 +37,9 @@ Locales.eng = Locales.en = {
         tableBar: "Table Barchart",
         heatmap: "Heatmap",
         rowHeatmap: "Row Heatmap",
-        colHeatmap: "Col Heatmap"
+        colHeatmap: "Col Heatmap",
+        barChart: "Bar Chart",
+        lineChart: "Line Chart"
     },
     localeStrings: {
         renderError: "An error occurred rendering the PivotTable results.",
@@ -86,7 +88,9 @@ Locales.kor = Locales.kr = {
         tableBar: "표 막대그래프",
         heatmap: "Heatmap",
         rowHeatmap: "열 Heatmap",
-        colHeatmap: "행 Heatmap"
+        colHeatmap: "행 Heatmap",
+        barChart: "막대 차트",
+        lineChart: "선 차트"
     },
     localeStrings: {
         renderError: "결과에 대한 그리기에 실패 하였습니다.",

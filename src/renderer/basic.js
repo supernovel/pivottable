@@ -1,69 +1,68 @@
 /**
- *  Name : renderer.js
+ *  Name : renderer.basic.js
  *  Explain : 
  * 
  */
 
-var Locales = require('./locales'),
-    Lib = require('./lib');
+var Locales = require('../locales'),
+    Lib = require('../lib');
 
-var Renderer = module.exports = {
-    makeLocaleRenderer: makeLocaleRenderer,
-    pivotTableRenderer: pivotTableRenderer
-};
+module.exports = {
+    table: function _table(options) {
+        options = options || {};
 
-var BaseRenderer =  {
-    table: function(data, opts) {
-        return pivotTableRenderer(data, opts);
-    },
-    tableBar: function(data, opts) {
-        return barchart({
-            target : pivotTableRenderer(data, opts)
+        return pivotTableRenderer({
+            pivotData : options.pivotData,
+            rendererOpts: options.rendererOpts
         });
     },
-    heatmap: function(data, opts) {
+    tableBar: function _tableBar(options) {
+        options = options || {};
+
+        return tableBar({
+            target : pivotTableRenderer({
+                pivotData : options.pivotData,
+                rendererOpts: options.rendererOpts
+            })
+        });
+    },
+    heatmap: function _heatmap(options) {
+        options = options || {}; 
+        
         return heatmap({
-            target : pivotTableRenderer(data, opts),
+            target : pivotTableRenderer({
+                pivotData : options.pivotData,
+                rendererOpts: options.rendererOpts
+            }),
             type: 'heatmap',
-            opts: opts
+            rendererOpts: options.rendererOpts
         });
     },
-    rowHeatmap: function(data, opts) {
+    rowHeatmap: function _rowHeatmap(options) {
+        options = options || {}; 
+
         return heatmap({
-            target : pivotTableRenderer(data, opts),
+            target : pivotTableRenderer({
+                pivotData : options.pivotData,
+                rendererOpts: options.rendererOpts
+            }),
             type: 'rowheatmap',
-            opts: opts
+            rendererOpts: options.rendererOpts
         });
     },
-    colHeatmap: function(data, opts) {
+    colHeatmap: function _colHeatmap(options) {
+        options = options || {}; 
+
         return heatmap({
-            target : pivotTableRenderer(data, opts),
+            target : pivotTableRenderer({
+                pivotData : options.pivotData,
+                rendererOpts: options.rendererOpts
+            }),
             type: 'colheatmap',
-            opts: opts
+            rendererOpts: options.rendererOpts
         });
     }
 };
-
-/**
- * makeLocaleRenderer
- * locale에 따라 이름을 적용한 오브젝트를 반환
- * 
- * @param {*} locale 
- */
-function makeLocaleRenderer(locale){
-    var localeTextEn = Locales.en.renderers,
-        localeTextUser = Locales[locale].renderers,
-        localeRenderer = {};
-
-    for(var key in BaseRenderer){
-        localeRenderer[key] = {
-            fn: BaseRenderer[key],
-            name: localeTextUser[key] || localeTextEn[key]
-        }
-    }
-
-    return localeRenderer;
-}
 
 /**
  * pivotTableRenderer
@@ -72,8 +71,12 @@ function makeLocaleRenderer(locale){
  * @param {*} opts 
  */
 
-function pivotTableRenderer(pivotData, opts) {
-    var aggregator, 
+function pivotTableRenderer(options) {
+    options = options || {};
+    
+    var pivotData = options.pivotData,
+        opts = options.opts,
+        aggregator, 
         c, colAttrs, colKey, colKeys, 
         defaults, 
         getClickHandler, 
@@ -317,11 +320,11 @@ function pivotTableRenderer(pivotData, opts) {
     return result;
 };
 
-function barchart(options){
+function tableBar(options){
     options = options || {};
 
     var target = options.target,
-        barcharter, i, l, numCols, numRows, ref;
+        tableBarMaker, i, l, numCols, numRows, ref;
 
     if(!target && !(target instanceof Element)){
         console.error('올바르지 않은 타켓입니다.');
@@ -331,7 +334,7 @@ function barchart(options){
     numRows = parseInt(target.getAttribute('data-numrows'));
     numCols = parseInt(target.getAttribute('data-numcols'));
 
-    barcharter = (function(_this) {
+    tableBarMaker = (function(_this) {
         return function(scope) {
             var forEachCell, max, scaler, values;
             
@@ -396,10 +399,10 @@ function barchart(options){
     })(target);
 
     for (i = l = 0, ref = numRows; 0 <= ref ? l < ref : l > ref; i = 0 <= ref ? ++l : --l) {
-        barcharter(".pvtVal.row" + i);
+        tableBarMaker(".pvtVal.row" + i);
     }
     
-    barcharter(".pvtTotal.colTotal");
+    tableBarMaker(".pvtTotal.colTotal");
     
     return target;
   };

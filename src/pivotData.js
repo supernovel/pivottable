@@ -70,10 +70,13 @@ PivotData.forEachRecord = function(options, callback) {
             var k, ref, v;
             for (k in derivedAttributes) {
                 v = derivedAttributes[k];
+
                 if(v instanceof Function){
                     record[k] = (ref = v(record)) != null ? ref : record[k];
-                }else if(v === 'd'){
-                    delete record[k];
+                }else if(k === '__delete__'){
+                    for(var i in v){
+                        delete record[v[i]];
+                    }
                 }
             }
             return callback(record, name);
